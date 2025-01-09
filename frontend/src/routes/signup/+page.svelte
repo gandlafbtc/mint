@@ -28,26 +28,8 @@
 			return;
 		}
 		try {
-			const pwHash = bytesToHex(
-				scrypt(password, 'saltynuts', { N: 2 ** 16, r: 8, p: 1, dkLen: 32 })
-			);
 			isLoading = true;
-			const response = await fetch(`${PUBLIC_MINT_API}/admin/signup`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					username,
-					password
-                    : pwHash
-				})
-			});
-            const data = await response.json()
-            if (!data.success) {
-                throw new Error(data.message);
-            }
-            userLoggedIn.set(data.data.user)
+			const data = await userLoggedIn.signup(username, password)
             toast.success(data.message)
             goto('/')
 		} catch (error) {

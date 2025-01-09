@@ -3,9 +3,9 @@
 	import Input from '$lib/components/ui/input/input.svelte';
 	import BackendTypeSelector from '$lib/elements/settings/BackendTypeSelector.svelte';
 	import { toast } from 'svelte-sonner';
-	import { ensureError } from '../../../errors';
 	import { settings } from '../../../stores';
 	import { LoaderCircle } from 'lucide-svelte';
+	import { ensureError } from '../../../errors';
 	let backendType = $state('LND');
 	let backendHost = $state('');
 	let backendCert = $state('');
@@ -20,12 +20,6 @@
 				tlsCertHex: backendCert,
 				type: backendType
 			});
-            if (res.status!==200) {
-                const data = await res.json()
-                console.log(data)
-                throw new Error(data.message+': '+data.data?.detail?.details);
-            }
-            await settings.load()
 			toast.success('Backend connected');
             
 		} catch (error) {

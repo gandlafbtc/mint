@@ -1,4 +1,4 @@
-import { sql, type InferSelectModel } from "drizzle-orm";
+import { relations, sql, type InferSelectModel } from "drizzle-orm";
 import { int, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const userTable = sqliteTable("user", {
@@ -10,12 +10,12 @@ export const userTable = sqliteTable("user", {
 export const settingsTable = sqliteTable('settings', {
     uid: int().primaryKey({ autoIncrement: true }),
     key: text().notNull().unique(),
-    value: text(),
-    version: int()
+    value: text().notNull(),
+    version: int().notNull()
 })
 
 export const keysetsTable = sqliteTable("keysets", {
-    hash: text().primaryKey().unique(),
+    hash: text().primaryKey(),
     unit: text(),
     isActive: integer({ mode: 'boolean' }),
     allowMelt: integer({ mode: 'boolean' }),
@@ -25,49 +25,56 @@ export const keysetsTable = sqliteTable("keysets", {
     input_fee_ppk: int()
 });
 
+
+
 export const keysTable = sqliteTable("keys", {
-    amount: int().primaryKey(),
-    pubKey: text().unique(),
-    secKey:  text().unique()
+    uid: int().primaryKey({ autoIncrement: true }),
+    amount: int().notNull(),
+    pubKey: text().notNull().unique(),
+    secKey:  text().notNull().unique(),
+    keysetHash: text().notNull().references(() => keysetsTable.hash)
 })
 
 export const blindedMessagesTable = sqliteTable("blinded_messages", {
     uid: int().primaryKey({ autoIncrement: true }),
     id: text().references(()=>keysetsTable.hash),
     unit: text(),
-    amount: int(),
-    B_: text().unique(),
-    C_: text().unique()
+    amount: int().notNull(),
+    B_: text().unique().notNull(),
+    C_: text().unique().notNull(),
+    quoteId: text().references(()=>mintQuotesTable.quote),
+    changeId: text().references(()=>meltQuotesTable.quote)
 });
 
 export const proofsTable = sqliteTable("proofs", {
     uid: int().primaryKey({ autoIncrement: true }),
-    id: text().references(()=>keysetsTable.hash),
-    secret: text().unique(),
-    C: text().unique(),
-    amount: int(),
-    status: text()
+    id: text().references(()=>keysetsTable.hash).notNull(),
+    secret: text().unique().notNull(),
+    C: text().unique().notNull(),
+    amount: int().notNull(),
+    status: text().notNull()
 });
 
 export const mintQuotesTable = sqliteTable("mint_quotes", {
-    quote: text().primaryKey().unique(),
-    amount: int(),
+    quote: text().primaryKey(),
+    amount: int().notNull(),
     unit: text(),
     description:text(),
-    request: text(),
-    state: text(),
-    expiry: integer({mode: "timestamp"})
+    request: text().notNull(),
+    hash: text().notNull(),
+    state: text().notNull(),
+    expiry: integer().notNull()
 });
 
 export const meltQuotesTable = sqliteTable("melt_quotes", {
-    quote: text().primaryKey().unique(),
-    amount: int(),
+    quote: text().primaryKey(),
+    amount: int().notNull(),
     unit: text(),
-    request: text(),
-    state: text(),
-    fee_reserve: int(),
+    request: text().notNull(),
+    state: text().notNull(),
+    fee_reserve: int().notNull(),
     payment_preimage: text(),
-    expiry: integer({mode: "timestamp"})
+    expiry: integer()
 });
 
 export type User = InferSelectModel<typeof userTable>;

@@ -17,21 +17,11 @@
     const updateSettings = async () => {
 		try {
 			isLoading = true;
-            const payload: UpdatePayload  = {
-                description: mintDescription,
-                name: mintName,
-                descripttionLong: mintDescriptionLong
-            }
+            const payload: UpdatePayload  =[['mint-name', mintName], ['mint-description', mintDescription], ['mint-description-long', mintDescriptionLong]]
             if (mintIconUrl) {
-                payload.iconURL = mintIconUrl
+                payload.push(['mint-icon-url', mintIconUrl])
             }
-			const res = await settings.updateSettings(payload);
-            if (res.status!==200) {
-                const data = await res.json()
-                console.log(data)
-                throw new Error(data.message);
-            }
-            await settings.load()
+			await settings.updateSettings(payload);
 			toast.success('Mint settings saved');
 		} catch (error) {
 			console.error(error);

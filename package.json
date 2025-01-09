@@ -19,10 +19,13 @@
     "@elysiajs/cookie": "^0.8.0",
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/jwt": "^1.2.0",
+    "@elysiajs/swagger": "^1.2.0",
     "@lightningpolar/lnd-api": "^0.18.4-beta.rc1",
     "@node-rs/argon2": "^2.0.2",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
+    "@scure/bip32": "^1.6.1",
+    "@scure/bip39": "^1.5.1",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.3",
     "elysia": "^1.2.6"

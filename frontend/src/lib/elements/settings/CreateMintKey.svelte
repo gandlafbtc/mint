@@ -1,17 +1,33 @@
 <script>
-	import Button from '$lib/components/ui/button/button.svelte';
 	import FormButton from '$lib/components/ui/form/form-button.svelte';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import { LoaderCircle } from 'lucide-svelte';
 	import { settings } from '../../../stores';
+	import { ensureError } from '../../../errors';
+	import { toast } from 'svelte-sonner';
 
 	let isLoading = $state(false);
 	let seed = $state('');
 	const updateSettings = async () => {
-        if (seed) {
-            settings.createKe
-            //TODO
-        }
+        try {
+			isLoading = true
+			if (seed) {
+				await settings.createKeys(seed)
+				
+			}
+			else {
+				await settings.createKeys()
+			}
+			toast.success('Added mint nostr key')
+		} catch (error) {
+			console.error(error);
+			const err = ensureError(error);
+			toast.error(err.message);
+		}
+		finally {
+			isLoading = false
+		}
+
     };
 </script>
 
