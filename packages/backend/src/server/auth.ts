@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { hash, verify } from "@node-rs/argon2";
 import { takeUniqueOrThrow, takeUniqueOrUndefinded } from "../db/orm-helpers/orm-helper";
 import { isAuthenticated } from "./middleware";
-import { getAll } from "../persistence/generic";
+import { getAll, getLastDay } from "../persistence/generic";
 import { upsertSettings } from "../persistence/settings";
 import { SETTINGS_VERSION } from "../const";
 import { testBackendConnection } from "../backend/test-connection";
@@ -195,6 +195,52 @@ export const auth = (app: Elysia) =>
                         proofsCount,
                         totalProofs,
                         totalPromises
+                    },
+                };
+            } catch (error) {
+                set.status = 400;
+                const err = ensureError(error)
+                console.error(err)
+                return {
+                    success: false,
+                    message: err.message,
+                    data: {
+                    },
+                };
+            }
+        })
+        .get("/proofs", async ({ user, message, set }) => {
+            try {
+                const proofsLast24h = await getLastDay(proofsTable)
+                
+                return {
+                    success: true,
+                    message: message,
+                    data: {
+                        proofs: proofsLast24h
+                    },
+                };
+            } catch (error) {
+                set.status = 400;
+                const err = ensureError(error)
+                console.error(err)
+                return {
+                    success: false,
+                    message: err.message,
+                    data: {
+                    },
+                };
+            }
+        })
+        .get("/promises", async ({ user, message, set }) => {
+            try {
+                const promisesLast24h = await getLastDay(blindedMessagesTable)
+                
+                return {
+                    success: true,
+                    message: message,
+                    data: {
+                        messages: promisesLast24h
                     },
                 };
             } catch (error) {

@@ -46,18 +46,18 @@
             <Card.Content class="space-y-2">
                 <div class="space-y-1">
                     <Label for="user">Username</Label>
-                    <Input bind:value={username} required placeholder="MNT" />
+                    <Input disabled={isLoading} bind:value={username} required placeholder="MNT" />
                 </div>
                 <div class="space-y-1">
                     <Label for="pass">Password</Label>
-                    <Input bind:value={password} required type='password' placeholder='*********'/>
+                    <Input disabled={isLoading} bind:value={password} required type='password' placeholder='*********'/>
                 </div>
             </Card.Content>
             <Card.Footer class='flex gap-2 justify-between items-center'>
                 <a href="/signup" class="text-sm underline">
                     Sign up
                 </a>
-                <FormButton>Login</FormButton>
+                <FormButton disabled={isLoading}>Login</FormButton>
             </Card.Footer>
         </form>
     </Card.Root>

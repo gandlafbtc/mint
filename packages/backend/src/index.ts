@@ -17,7 +17,7 @@ const app = new Elysia()
         path: '/docs',
         documentation: {
             info: {
-                title: 'BingBong Documentation',
+                title: 'MNT Documentation',
                 version: '1.0.0'
             }
         }
@@ -29,7 +29,7 @@ const app = new Elysia()
                 contact: [],
                 name: settings.find(s => s.key === 'mint-name')?.value ?? '',
                 pubkey: settings.find(s => s.key === 'mint-pub-key')?.value ?? '',
-                version: 'bing-bong-v0.1',
+                version: 'MNT-v0.1',
                 motd: settings.find(s => s.key === 'mint-motd')?.value ?? '',
                 description: settings.find(s => s.key === 'mint-description')?.value ?? '',
                 description_long: settings.find(s => s.key === 'mint-description-long')?.value ?? '',

@@ -69,6 +69,11 @@
 				icon: LayoutDashboard,
 			},
 			{
+				name: "Keysets",
+				url: "/keysets",
+				icon: Key,
+			},
+			{
 				name: "Charts",
 				url: "#",
 				icon: ChartPie,
@@ -84,7 +89,7 @@
 	import TeamSwitcher from "$lib/components/team-switcher.svelte";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import type { ComponentProps } from "svelte";
-	import { Landmark, LayoutDashboard } from "lucide-svelte";
+	import { Key, Landmark, LayoutDashboard } from "lucide-svelte";
 
 	let {
 		ref = $bindable(null),

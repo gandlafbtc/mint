@@ -57,7 +57,7 @@
 				<div class=" flex flex-col col-span-3 items-center justify-center gap-2">
                 <Progress value={($dashboardData.proofsCount.reduce((prev, curr)=> curr.count+prev,0)/$dashboardData.promisesCount.reduce((prev, curr)=> curr.count+prev,0))*100} />
 				</div>
-				<div class=" flex flex-col items-center justify-center gap-2">
+				<div class=" flex flex-col items-center justify-center gap-2 text-sky-500">
 					<p class="">Promises</p>
 					<p class="text-3xl font-bold">
 						<NumberFlow value={$dashboardData.promisesCount.reduce((prev, curr)=> curr.count+prev,0)}></NumberFlow>
@@ -78,7 +78,7 @@
                     <div class="flex flex-col items-center justify-center gap-2 text-green-500">
                         <p class="">Proofs</p>
                         <p class="text-3xl font-bold">
-                            <NumberFlow value={$dashboardData.totalProofs.reduce((prev, curr)=> parseInt(curr.sum)+prev,0)}></NumberFlow>
+                            <NumberFlow format={{ notation: 'compact',maximumFractionDigits:1,minimumFractionDigits:0 }} value={$dashboardData.totalProofs.reduce((prev, curr)=> parseInt(curr.sum)+prev,0)}></NumberFlow>
                             <span class="text-xs">
                                 sat
                             </span>
@@ -88,10 +88,10 @@
                     <div class=" flex flex-col col-span-2 items-center justify-center gap-2">
                     <Progress value={($dashboardData.totalProofs.reduce((prev, curr)=> parseInt(curr.sum)+prev,0)/$dashboardData.totalPromises.reduce((prev, curr)=> parseInt(curr.sum)+prev,0))*100} />
                     </div>
-                    <div class=" flex flex-col items-center justify-center gap-2">
+                    <div class=" flex flex-col items-center justify-center gap-2 text-sky-500">
                         <p class="">Promises</p>
                         <p class="text-3xl font-bold">
-                            <NumberFlow value={$dashboardData.totalPromises.reduce((prev, curr)=> parseInt(curr.sum)+prev,0)}></NumberFlow>
+                            <NumberFlow format={{ notation: 'compact', maximumFractionDigits:1 ,minimumFractionDigits:0  }} value={$dashboardData.totalPromises.reduce((prev, curr)=> parseInt(curr.sum)+prev,0)}></NumberFlow>
                             <span class="text-xs">
                                 sat
                             </span>

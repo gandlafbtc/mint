@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db/db";
 import type { MintKeys } from "@cashu/cashu-ts";
 import type { KeysetPair } from "@cashu/crypto/modules/mint";
@@ -41,7 +41,7 @@ export const getActiveKeys = async (): Promise<MintKeys[]> => {
     )
         .from(keysetsTable)
         .leftJoin(keysTable, eq(keysetsTable.hash, keysTable.keysetHash))
-        .where(sql`${keysetsTable.isActive}=${1}`)).map(r => {
+        .where(eq(keysetsTable.isActive, true))).map(r => {
             return {
                 id: r.id,
                 unit: r.unit,
@@ -85,7 +85,7 @@ export const getKeysetById = async (id: string): Promise<MintKeys[]> => {
     )
         .from(keysetsTable)
         .leftJoin(keysTable, eq(keysetsTable.hash, keysTable.keysetHash))
-        .where(sql`${keysetsTable.hash}=${id}`))
+        .where(eq(keysetsTable.hash, id)))
         .map(r => {
             return {
                 id: r.id,

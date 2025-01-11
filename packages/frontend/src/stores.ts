@@ -5,7 +5,7 @@ import { scrypt } from "@noble/hashes/scrypt";
 import { bytesToHex } from "@noble/hashes/utils";
 import { toast } from "svelte-sonner";
 import { get, writable } from "svelte/store";
-import { type Keyset, type Proof, type Setting } from "@mnt/common/db/types";
+import { type BlindedMessage, type Keyset, type Proof, type Setting } from "@mnt/common/db/types";
 
 export type User = {
     access_token: string
@@ -258,14 +258,14 @@ export const dashboardData = createDashboardDataStore()
 
 
 const createProofsStore = () => {
-    const store = writable<Proof[]>()
+    const store = writable<Proof[]>([])
     const setFromResponse = async (response: Response) => {
         const data = await response.json()
         if (response.status !== 200) {
             throw new Error(response.status + ": " + data.message);
         }
         console.log(data)
-        store.set(data.data)
+        store.set(data.data.proofs)
         return data.data
     }
     
@@ -288,6 +288,37 @@ const createProofsStore = () => {
 export const proofsStore = createProofsStore()
 
 
+const createPromisesStore = () => {
+    const store = writable<BlindedMessage[]>([])
+    const setFromResponse = async (response: Response) => {
+        const data = await response.json()
+        if (response.status !== 200) {
+            throw new Error(response.status + ": " + data.message);
+        }
+        console.log(data)
+        store.set(data.data.messages)
+        return data.data
+    }
+    
+    const load = async () => {
+        const response = await fetch(`${PUBLIC_MINT_API}/admin/promises`, {
+            headers: {
+                Authorization: 'Bearer ' + get(userLoggedIn)?.access_token
+            }
+        });
+        if (response.ok) {
+            return await setFromResponse(response)
+        }
+        else {
+            throw new Error("Could not load proofs");
+        }
+    }
+    return { ...store, load }
+}
+
+export const promisesStore = createPromisesStore()
+
+
 
 const handleSocketCommand = (data: {command: string, data: any}) => {
     if (!data.command || data.command === 'ping') {
@@ -295,19 +326,48 @@ const handleSocketCommand = (data: {command: string, data: any}) => {
     }
     switch (data.command) {
         case 'inserted-messages':
-            const proofs = data.data.proofs as Proof[]
-            if (!proofs.length) {
+            const messages = data.data.messages as BlindedMessage[]
+            if (!messages.length) {
                 return
             }
-            proofsStore.update(ctx=> [...proofs,...ctx])
+            promisesStore.update(ctx=> [...ctx, ...messages])
             dashboardData.update(ctx=> {
-                for (const proof of proofs) {
-                    ctx.proofsCount.find(c=> c.id===proof.id)
+                for (const message of messages) {
+                    const count = ctx.promisesCount.find(c=> c.id===message.id)
+                    if (!count) {
+                        continue
+                    }
+                    count.count++
+                    const sum = ctx.totalPromises.find(c=> c.id===message.id)
+                    if (!sum) {
+                        continue
+                    }
+                    sum.sum = (parseInt(sum.sum) + message.amount) + ''
                 }
                 return ctx 
             })
             break;
         case 'inserted-proofs':
+            const proofs = data.data.proofs as Proof[]
+            if (!proofs.length) {
+                return
+            }
+            proofsStore.update(ctx=> [...ctx, ...proofs])
+            dashboardData.update(ctx=> {
+                for (const proof of proofs) {
+                    const count = ctx.proofsCount.find(c=> c.id===proof.id)
+                    if (!count) {
+                        continue
+                    }
+                    count.count++
+                    const sum = ctx.totalProofs.find(c=> c.id===proof.id)
+                    if (!sum) {
+                        continue
+                    }
+                    sum.sum = (parseInt(sum.sum) + proof.amount) + ''
+                }
+                return ctx 
+            })
             break;
         default:
             console.log('unknown command: ', data.command);
@@ -356,6 +416,8 @@ reconnectWebSocket()
 export const init = async () => {
     await Promise.all([
         keysets.load(),
-        dashboardData.load()
+        dashboardData.load(),
+        proofsStore.load(),
+        promisesStore.load()
     ])
 } 

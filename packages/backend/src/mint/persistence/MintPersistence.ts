@@ -62,7 +62,7 @@ export class MintPersistenceImpl {
         const insertedQuote = (await db.insert(mintQuotesTable).values(
             quote
         ).returning())?.[0]
-        eventEmitter.emit('socket-event', {command: 'inserted-mint-quote', insertedQuote})
+        eventEmitter.emit('socket-event', {command: 'inserted-mint-quote', data: {quote: insertedQuote}})
         return insertedQuote
     }
 
@@ -83,13 +83,13 @@ export class MintPersistenceImpl {
 
     async insertMessages(messages: InsertBlindedMessage[]) {
         const insertedMessages = await db.insert(blindedMessagesTable).values(messages).returning()
-        eventEmitter.emit('socket-event', {command: 'inserted-messages', insertedMessages})
+        eventEmitter.emit('socket-event', {command: 'inserted-messages', data: {messages: insertedMessages}})
         return insertedMessages
     }
 
     async insertProofs(proofs: InsertProof[]) {
         const insertedProofs = await db.insert(proofsTable).values(proofs).returning()
-        eventEmitter.emit('socket-event', {command: 'inserted-messages', insertedProofs})
+        eventEmitter.emit('socket-event', {command: 'inserted-proofs', data:{proofs: insertedProofs}})
         return insertedProofs
 
     }
@@ -118,7 +118,7 @@ export class MintPersistenceImpl {
         const insertedQuote = (await db.insert(meltQuotesTable).values(
             quote
         ).returning())?.[0]
-        eventEmitter.emit('socket-event', {command: 'inserted-melt-quote', insertedQuote})
+        eventEmitter.emit('socket-event', {command: 'inserted-melt-quote', data: {quote: insertedQuote}})
         return insertedQuote
     }
     async updateMeltQuoteState(quote: string, state: MeltQuoteState): Promise<MeltQuote> {

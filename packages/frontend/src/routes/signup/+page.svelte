@@ -15,7 +15,7 @@
 	let password = $state('');
 	let passwordRepeat = $state('');
 
-	let isLoading = $state();
+	let isLoading = $state(false);
 
 	const signup = async () => {
         console.log(password)
@@ -52,20 +52,20 @@
 			<Card.Content class="space-y-2">
 				<div class="space-y-1">
 					<Label for="name">Username</Label>
-					<Input bind:value={username} required id="name" placeholder="MNT" />
+					<Input disabled={isLoading} bind:value={username} required id="name" placeholder="MNT" />
 				</div>
 				<div class="space-y-1">
 					<Label for="username">Password</Label>
-					<Input bind:value={password} required type="password" placeholder="*********" />
+					<Input disabled={isLoading} bind:value={password} required type="password" placeholder="*********" />
 				</div>
 				<div class="space-y-1">
 					<Label for="username">Repeat password</Label>
-					<Input bind:value={passwordRepeat} required type="password" placeholder="*********" />
+					<Input disabled={isLoading} bind:value={passwordRepeat} required type="password" placeholder="*********" />
 				</div>
 			</Card.Content>
 			<Card.Footer class="flex items-center justify-between gap-2">
 				<a href="/login" class="text-sm underline"> Login </a>
-				<FormButton type="submit">Sign up</FormButton>
+				<FormButton disabled={isLoading} type="submit">Sign up</FormButton>
 			</Card.Footer>
 		</form>
 	</Card.Root>
