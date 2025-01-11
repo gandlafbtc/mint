@@ -1,6 +1,6 @@
 import type Elysia from "elysia";
 import { db } from "../db/db";
-import { keysetsTable, settingsTable, userTable } from "../db/schema";
+import { blindedMessagesTable, keysetsTable, proofsTable, settingsTable, userTable } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { hash, verify } from "@node-rs/argon2";
 import { takeUniqueOrThrow, takeUniqueOrUndefinded } from "../db/orm-helpers/orm-helper";
@@ -11,6 +11,10 @@ import { SETTINGS_VERSION } from "../const";
 import { testBackendConnection } from "../backend/test-connection";
 import { mint } from "../instances/mint";
 import { ensureError } from "../errors";
+import { getProofsCounts, totalProofed } from "../persistence/proofs";
+import { getBMsCounts, totalPromised } from "../persistence/blindedmessages";
+import { eventEmitter } from "../events/emitter";
+import type { SocketEventData } from "../mint/types";
 
 export const auth = (app: Elysia) =>
     app
@@ -176,6 +180,35 @@ export const auth = (app: Elysia) =>
                 };
             }
         })
+        .get("/dashboard-data", async ({ user, message, set }) => {
+            try {
+                const promisesCount = await getBMsCounts()
+                const proofsCount = await getProofsCounts()
+                const totalPromises = await totalPromised()
+                const totalProofs = await totalProofed()
+                
+                return {
+                    success: true,
+                    message: message,
+                    data: {
+                        promisesCount,
+                        proofsCount,
+                        totalProofs,
+                        totalPromises
+                    },
+                };
+            } catch (error) {
+                set.status = 400;
+                const err = ensureError(error)
+                console.error(err)
+                return {
+                    success: false,
+                    message: err.message,
+                    data: {
+                    },
+                };
+            }
+        })
         .post("/updateMintSettings", async ({ user, message, body, set }) => {
             try {
 
@@ -289,7 +322,7 @@ export const auth = (app: Elysia) =>
                 const { unit } = body as {
                     unit?: string
                 };
-                const keysetPair = await mint.createKeysetPair()
+                await mint.createKeysetPair()
                 const keysets = await getAll(keysetsTable)
                 console.log(keysets)
                 return {
@@ -342,10 +375,16 @@ export const auth = (app: Elysia) =>
                   };
                 }
             },
+
             open: (ws) => {
                 ws.subscribe('message')
+                setInterval(()=> ws.send({command: 'ping', data: {}}),5000)
+                eventEmitter.on('socket-event', (e: SocketEventData)=> {
+                    ws.send(e)
+                })
             },
-            message(ws, body){
-                ws.publish("message", JSON.stringify(body))
+            message(ws, message){
+                //receiving messages
+                console.log(message)
             }
         })

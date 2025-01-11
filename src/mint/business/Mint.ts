@@ -1,4 +1,3 @@
-import { type Mint } from "../interface/Mint";
 import { MintError, type Secret } from '../types/index';
 import { findPrivKeyForAmountFromKeyset, randomHexString } from "../util/util";
 import { type KeysetPair,createBlindSignature,createNewMintKeys, verifyProof } from '@cashu/crypto/modules/mint';
@@ -11,13 +10,13 @@ import { mnemonicToSeed } from "@scure/bip39";
 import { HDKey } from "@scure/bip32";
 import { bytesToHex, hexToBytes } from "@noble/curves/abstract/utils";
 import { mint, persistence } from "../../instances/mint";
-import type { MeltQuote, MintQuote } from "../../db/schema";
+import type { InsertMeltQuote, InsertMintQuote, MeltQuote, MintQuote } from "../../db/schema";
 import { date } from "drizzle-orm/mysql-core";
 import { env } from "bun";
 import { settings } from "./Settings";
 import { MintQuoteState, type SerializedBlindedMessage } from "@cashu/cashu-ts";
 
-export class CashuMint implements Mint {
+export class CashuMint {
 
     private lightningInterface: Lightning
 
@@ -52,7 +51,7 @@ export class CashuMint implements Mint {
         return {privKey, pubKey}
     }
 
-    async createKeysetPair(): Promise<KeysetPair> {
+    async createKeysetPair() {
         const mintKeys = createNewMintKeys(32)
         const persisted = await persistence.addKeyset(mintKeys)
         return persisted
@@ -109,7 +108,7 @@ export class CashuMint implements Mint {
             }
             invoice.rHash=bytesToHex(invoice.rHash)
         }
-        const mintQuote: MintQuote = {
+        const mintQuote: InsertMintQuote = {
             state: "UNPAID",
             expiry: Math.floor(Date.now()/1000)+settings.quoteExpiry,
             quote: randomHexString(),
@@ -181,7 +180,7 @@ export class CashuMint implements Mint {
     async meltQuote(request: string, unit = "sat"): Promise<MeltQuote> {
         const {fee} = await this.lightningInterface.estimateFee(request)
         const { amount } = await this.lightningInterface.getInvoiceAmount(request)
-        const meltQuote: MeltQuote = {
+        const meltQuote: InsertMeltQuote = {
             state: "UNPAID",
             expiry: Math.floor(Date.now()/1000)+settings.quoteExpiry,
             quote: randomHexString(),

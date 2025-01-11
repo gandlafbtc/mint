@@ -22,3 +22,9 @@ export enum Version {
 
 
 export type Secret = Proof | {secret: Uint8Array}
+
+
+export type SocketEventData = {
+  command: string,
+  data: any
+}

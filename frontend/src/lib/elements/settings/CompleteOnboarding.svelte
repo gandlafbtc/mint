@@ -2,7 +2,7 @@
 	import Button from "$lib/components/ui/button/button.svelte";
 	import { toast } from "svelte-sonner";
 	import { ensureError } from "../../../errors";
-	import { settings } from "../../../stores";
+	import { keysets, settings } from "../../../stores";
 	import { goto } from "$app/navigation";
     let isLoading = $state(false)
 
@@ -11,7 +11,7 @@
             isLoading=true
 
             // create keyset
-            await settings.createKeyset({unit: 'sat'})
+            await keysets.createKeyset({unit: 'sat'})
             await settings.updateSettings([['onboarded', 'true']])
             toast.success('New Keyset created')
             goto('/')

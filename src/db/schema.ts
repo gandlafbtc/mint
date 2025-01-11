@@ -1,17 +1,24 @@
-import { relations, sql, type InferSelectModel } from "drizzle-orm";
+import { relations, sql, type InferInsertModel, type InferSelectModel } from "drizzle-orm";
 import { int, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+const timestamps = {
+    updatedAt: integer().notNull().default(sql`(unixepoch())`),
+    createdAt: integer().notNull().default(sql`(unixepoch())`),
+  }
 
 export const userTable = sqliteTable("user", {
 	id: text("id").primaryKey().$defaultFn(()=> crypto.randomUUID()),
     username: text('username').notNull().unique(),
-	passwordHash: text('password_hash').notNull()
+	passwordHash: text('password_hash').notNull(),
+    ...timestamps
 });
 
 export const settingsTable = sqliteTable('settings', {
     uid: int().primaryKey({ autoIncrement: true }),
     key: text().notNull().unique(),
     value: text().notNull(),
-    version: int().notNull()
+    version: int().notNull(),
+    ...timestamps
 })
 
 export const keysetsTable = sqliteTable("keysets", {
@@ -22,7 +29,8 @@ export const keysetsTable = sqliteTable("keysets", {
     allowMint: integer({ mode: 'boolean' }),
     allowSwapOut: integer({ mode: 'boolean' }),
     allowSwapIn: integer({ mode: 'boolean' }),
-    input_fee_ppk: int()
+    input_fee_ppk: int(),
+    ...timestamps
 });
 
 
@@ -32,7 +40,8 @@ export const keysTable = sqliteTable("keys", {
     amount: int().notNull(),
     pubKey: text().notNull().unique(),
     secKey:  text().notNull().unique(),
-    keysetHash: text().notNull().references(() => keysetsTable.hash)
+    keysetHash: text().notNull().references(() => keysetsTable.hash),
+    ...timestamps
 })
 
 export const blindedMessagesTable = sqliteTable("blinded_messages", {
@@ -43,7 +52,8 @@ export const blindedMessagesTable = sqliteTable("blinded_messages", {
     B_: text().unique().notNull(),
     C_: text().unique().notNull(),
     quoteId: text().references(()=>mintQuotesTable.quote),
-    changeId: text().references(()=>meltQuotesTable.quote)
+    changeId: text().references(()=>meltQuotesTable.quote),
+    ...timestamps
 });
 
 export const proofsTable = sqliteTable("proofs", {
@@ -52,7 +62,8 @@ export const proofsTable = sqliteTable("proofs", {
     secret: text().unique().notNull(),
     C: text().unique().notNull(),
     amount: int().notNull(),
-    status: text().notNull()
+    status: text().notNull(),
+    ...timestamps
 });
 
 export const mintQuotesTable = sqliteTable("mint_quotes", {
@@ -63,7 +74,8 @@ export const mintQuotesTable = sqliteTable("mint_quotes", {
     request: text().notNull(),
     hash: text().notNull(),
     state: text().notNull(),
-    expiry: integer().notNull()
+    expiry: integer().notNull(),
+    ...timestamps
 });
 
 export const meltQuotesTable = sqliteTable("melt_quotes", {
@@ -74,7 +86,8 @@ export const meltQuotesTable = sqliteTable("melt_quotes", {
     state: text().notNull(),
     fee_reserve: int().notNull(),
     payment_preimage: text(),
-    expiry: integer()
+    expiry: integer(),
+    ...timestamps
 });
 
 export type User = InferSelectModel<typeof userTable>;
@@ -85,4 +98,13 @@ export type Proof = InferSelectModel<typeof proofsTable>;
 export type MintQuote = InferSelectModel<typeof mintQuotesTable>;
 export type MeltQuote = InferSelectModel<typeof meltQuotesTable>;
 export type Setting = InferSelectModel<typeof settingsTable>;
+
+export type InsertUser = InferInsertModel<typeof userTable>;
+export type InsertKeyset = InferInsertModel<typeof keysetsTable>;
+export type InsertKeys = InferInsertModel<typeof keysTable>;
+export type InsertBlindedMessage = InferInsertModel<typeof blindedMessagesTable>;
+export type InsertProof = InferInsertModel<typeof proofsTable>;
+export type InsertMintQuote = InferInsertModel<typeof mintQuotesTable>;
+export type InsertMeltQuote = InferInsertModel<typeof meltQuotesTable>;
+export type InsertSetting = InferInsertModel<typeof settingsTable>;
 

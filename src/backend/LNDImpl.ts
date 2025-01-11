@@ -31,7 +31,7 @@ export class LNDBackend implements Lightning {
         return {fee: Math.ceil(parseInt(res.routingFeeMsat)/1000)}
     }
     
-    async payInvoice(request: string, feeLimitMsat): Promise<{ preimage: string; }> {
+    async payInvoice(request: string, feeLimitMsat: number): Promise<{ preimage: string; }> {
         const lnd = await LND.getInstance()
         const stream = lnd.router.sendPaymentV2({allowSelfPayment: true, feeLimitMsat, timeoutSeconds:30, paymentRequest: request})
         return new Promise((resolve, reject) => {

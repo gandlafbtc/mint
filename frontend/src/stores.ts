@@ -184,16 +184,7 @@ export const settings = createSettingsStore()
 export type UpdatePayload = [string, string][]
 
 const createKeysetsStore = () => {
-    const store = writable<{
-        hash: string;
-        unit: string;
-        isActive: boolean;
-        allowMelt: boolean;
-        allowMint: boolean;
-        allowSwapOut: boolean;
-        allowSwapIn: boolean;
-        input_fee_ppk: number;
-      }[]>([])
+    const store = writable<any[]>([])
     const setFromResponse = async (response: Response) => {
         const data = await response.json()
         if (response.status !== 200) {
@@ -232,7 +223,112 @@ const createKeysetsStore = () => {
 export const keysets = createKeysetsStore()
 
 
+const createDashboardDataStore = () => {
+    const store = writable<{
+        promisesCount: {id: string, count: number}[],
+        proofsCount: {id: string, count: number}[],
+        totalProofs: {id: string, sum: string}[],
+        totalPromises: {id: string, sum: string}[]
+    }>()
+    const setFromResponse = async (response: Response) => {
+        const data = await response.json()
+        if (response.status !== 200) {
+            throw new Error(response.status + ": " + data.message);
+        }
+        console.log(data)
+        store.set(data.data)
+        return data.data
+    }
+    
+    const load = async () => {
+        const response = await fetch(`${PUBLIC_MINT_API}/admin/dashboard-data`, {
+            headers: {
+                Authorization: 'Bearer ' + get(userLoggedIn)?.access_token
+            }
+        });
+        if (response.ok) {
+            return await setFromResponse(response)
+        }
+        else {
+            throw new Error("Could not load keysets");
+        }
+    }
+    return { ...store, load }
+}
+
+export const dashboardData = createDashboardDataStore()
+
+
+const createProofsStore = () => {
+    const store = writable<[]>()
+    const setFromResponse = async (response: Response) => {
+        const data = await response.json()
+        if (response.status !== 200) {
+            throw new Error(response.status + ": " + data.message);
+        }
+        console.log(data)
+        store.set(data.data)
+        return data.data
+    }
+    
+    const load = async () => {
+        const response = await fetch(`${PUBLIC_MINT_API}/admin/proofs`, {
+            headers: {
+                Authorization: 'Bearer ' + get(userLoggedIn)?.access_token
+            }
+        });
+        if (response.ok) {
+            return await setFromResponse(response)
+        }
+        else {
+            throw new Error("Could not load proofs");
+        }
+    }
+    return { ...store, load }
+}
+
+export const proofsStore = createProofsStore()
+
+
+
+const handleSocketCommand = (data: {command: string, data: any}) => {
+    if (!data.command || data.command === 'ping') {
+        return
+    }
+    switch (data.command) {
+        case 'inserted-messages':
+            const proofs = data.data.proofs as []
+            if (!proofs.length) {
+                return
+            }
+            proofsStore.update(ctx=> [...proofs,...ctx])
+            break;
+        case 'inserted-proofs':
+            break;
+        default:
+            console.log('unknown command: ', data.command);
+    }
+}
+
+const handleSocketMessage = (message: MessageEvent) => {
+    const dataStr = message.data
+    if (!dataStr) {
+        return
+    }
+    let data
+    try {
+        data = JSON.parse(dataStr)
+    } catch (error) {
+        console.error('could not parse JSON: ' , dataStr)
+    }
+    handleSocketCommand(data)
+}
+
 const reconnectWebSocket = () => {
+    if (!browser)
+    {
+        return
+    }
     setTimeout(() => { reconnectWebSocket() }, 5000)
     const user = get(userLoggedIn)
     if (!user?.access_token) {
@@ -240,9 +336,13 @@ const reconnectWebSocket = () => {
     }
     if (socket === undefined || socket.readyState === WebSocket.CLOSED) {
         socket = new WebSocket(PUBLIC_MINT_WS, [user.access_token])
-        socket.addEventListener('message', (e) => {
-
-        })
+        socket.onopen = () => {
+            socket?.send('pong') // send some text to server
+          };
+          socket.onmessage = (message) => {
+            // here we got something sent from the server
+            handleSocketMessage(message)
+          };
         console.log('connect to ws')
     }
 }
@@ -251,6 +351,7 @@ reconnectWebSocket()
 
 export const init = async () => {
     await Promise.all([
-        keysets.load()
+        keysets.load(),
+        dashboardData.load()
     ])
 } 

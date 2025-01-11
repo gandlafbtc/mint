@@ -1,15 +1,15 @@
 import type { KeysetPair } from "@cashu/crypto/modules/mint";
 import type { Keyset as SerializedKeyset } from "@cashu/crypto/modules/common";
-import type { MintPersistence } from "../interface/Persistence";
 import type { Unit } from "../types";
 import { upsertSettings } from "../../persistence/settings";
 import { SETTINGS_VERSION } from "../../const";
 import { db } from "../../db/db";
-import { blindedMessagesTable, keysetsTable, keysTable, meltQuotesTable, mintQuotesTable, proofsTable, type BlindedMessage, type Keys, type Keyset, type MeltQuote, type MintQuote, type Proof } from "../../db/schema";
+import { blindedMessagesTable, keysetsTable, keysTable, meltQuotesTable, mintQuotesTable, proofsTable, type BlindedMessage, type InsertBlindedMessage, type InsertMeltQuote, type InsertMintQuote, type InsertProof, type Keys, type Keyset, type MeltQuote, type MintQuote, type Proof } from "../../db/schema";
 import { bytesToHex } from "@noble/hashes/utils";
 import { eq, inArray } from "drizzle-orm";
 import { getKeypairById, getKeysetById } from "../../persistence/keysets";
 import type { CheckStateEnum, MeltQuoteState, MintQuoteState, ProofState } from "@cashu/cashu-ts";
+import { eventEmitter } from "../../events/emitter";
 
 export class MintPersistenceImpl {
     async insertSeedKeys(keys: { pubKey: string; privKey: string; }): Promise<{ pubKey: string; privKey: string; }> {
@@ -40,7 +40,7 @@ export class MintPersistenceImpl {
             const keys: Omit<Keys, 'uid'>[] = []
             for (const pubK of Object.entries(keysetPair.pubKeys)) {
                 const amount = parseInt(pubK[0])
-                keys.push({ amount, keysetHash: keysetPair.keysetId, pubKey: bytesToHex(pubK[1]), secKey: bytesToHex(keysetPair.privKeys[amount]) })
+                keys.push({ amount, keysetHash: keysetPair.keysetId, pubKey: bytesToHex(pubK[1]), secKey: bytesToHex(keysetPair.privKeys[amount]), createdAt: Math.floor(Date.now()/1000), updatedAt:  Math.floor(Date.now()/1000)})
             }
             await t.insert(keysTable).values(keys)
             allKeysets = await t.select().from(keysetsTable)
@@ -56,11 +56,12 @@ export class MintPersistenceImpl {
         return keysets
     }
 
-    async createMintQuote(quote: MintQuote): Promise<MintQuote> {
-        await db.insert(mintQuotesTable).values(
+    async createMintQuote(quote: InsertMintQuote): Promise<MintQuote> {
+        const insertedQuote = (await db.insert(mintQuotesTable).values(
             quote
-        )
-        return quote
+        ).returning())?.[0]
+        eventEmitter.emit('socket-event', {command: 'inserted-mint-quote', insertedQuote})
+        return insertedQuote
     }
 
     async updateMintQuote(quote: MintQuote): Promise<MintQuote> {
@@ -78,12 +79,17 @@ export class MintPersistenceImpl {
         return quotes[0]
     }
 
-    async insertMessages(messages: Omit<BlindedMessage, 'uid'>[]) {
-        await db.insert(blindedMessagesTable).values(messages)
+    async insertMessages(messages: InsertBlindedMessage[]) {
+        const insertedMessages = await db.insert(blindedMessagesTable).values(messages).returning()
+        eventEmitter.emit('socket-event', {command: 'inserted-messages', insertedMessages})
+        return insertedMessages
     }
 
-    async insertProofs(proofs: Omit<Proof, 'uid'>[]) {
-        await db.insert(proofsTable).values(proofs)
+    async insertProofs(proofs: InsertProof[]) {
+        const insertedProofs = await db.insert(proofsTable).values(proofs).returning()
+        eventEmitter.emit('socket-event', {command: 'inserted-messages', insertedProofs})
+        return insertedProofs
+
     }
     async updateProofStatus(secrets: string[], status: CheckStateEnum) {
         await db.update(proofsTable).set({ status: status }).where(inArray(proofsTable.secret, secrets))
@@ -106,11 +112,12 @@ export class MintPersistenceImpl {
     async getUnitFromId(id: string): Promise<Unit | undefined> {
         throw new Error("Method not implemented.");
     }
-    async createMeltQuote(quote: MeltQuote): Promise<MeltQuote> {
-        await db.insert(meltQuotesTable).values(
+    async createMeltQuote(quote: InsertMeltQuote): Promise<MeltQuote> {
+        const insertedQuote = (await db.insert(meltQuotesTable).values(
             quote
-        )
-        return quote
+        ).returning())?.[0]
+        eventEmitter.emit('socket-event', {command: 'inserted-melt-quote', insertedQuote})
+        return insertedQuote
     }
     async updateMeltQuoteState(quote: string, state: MeltQuoteState): Promise<MeltQuote> {
         const updated = await db.update(meltQuotesTable).set({ state: state }).where(eq(meltQuotesTable.quote, quote)).returning()
