@@ -6,6 +6,7 @@ import { bytesToHex } from "@noble/hashes/utils";
 import { toast } from "svelte-sonner";
 import { get, writable } from "svelte/store";
 import { type BlindedMessage, type Keyset, type Proof, type Setting } from "@mnt/common/db/types";
+import { type ConnectPayload, type PingData } from "@mnt/common/types";
 
 export type User = {
     access_token: string
@@ -117,12 +118,7 @@ const createSettingsStore = () => {
             throw new Error("Could not load settings");
         }
     }
-    type ConnectPayload = {
-        type: string
-        rpcHost: string,
-        macaroonHex: string,
-        tlsCertHex: string
-    }
+    
     const connectBackend = async (payload: ConnectPayload) => {
         const response = await fetch(`${PUBLIC_MINT_API}/admin/connectBackend`, {
             method: "POST",
@@ -233,7 +229,6 @@ const createDashboardDataStore = () => {
         if (response.status !== 200) {
             throw new Error(response.status + ": " + data.message);
         }
-        console.log(data)
         store.set(data.data)
         return data.data
     }
@@ -264,7 +259,6 @@ const createProofsStore = () => {
         if (response.status !== 200) {
             throw new Error(response.status + ": " + data.message);
         }
-        console.log(data)
         store.set(data.data.proofs)
         return data.data
     }
@@ -295,7 +289,6 @@ const createPromisesStore = () => {
         if (response.status !== 200) {
             throw new Error(response.status + ": " + data.message);
         }
-        console.log(data)
         store.set(data.data.messages)
         return data.data
     }
@@ -320,8 +313,20 @@ export const promisesStore = createPromisesStore()
 
 
 
+const createPingStore = () => {
+    const store = writable<PingData>()
+
+    return { ...store }
+}
+
+export const pingStore = createPingStore()
+
+
+
 const handleSocketCommand = (data: {command: string, data: any}) => {
     if (!data.command || data.command === 'ping') {
+        const pingData = data.data as PingData
+        pingStore.set(pingData)
         return
     }
     switch (data.command) {
@@ -415,6 +420,7 @@ reconnectWebSocket()
 
 export const init = async () => {
     await Promise.all([
+        settings.load(),
         keysets.load(),
         dashboardData.load(),
         proofsStore.load(),

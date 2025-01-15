@@ -1,6 +1,7 @@
 import type Elysia from "elysia";
 import { db } from "../db/db";
 import { blindedMessagesTable, keysetsTable, proofsTable, settingsTable, userTable } from "@mnt/common/db";
+import { type PingData } from "@mnt/common/types";
 import { eq } from "drizzle-orm";
 import { hash, verify } from "@node-rs/argon2";
 import { takeUniqueOrThrow, takeUniqueOrUndefinded } from "../db/orm-helpers/orm-helper";
@@ -15,6 +16,8 @@ import { getProofsCounts, totalProofed } from "../persistence/proofs";
 import { getBMsCounts, totalPromised } from "../persistence/blindedmessages";
 import { eventEmitter } from "../events/emitter";
 import type { SocketEventData } from "../mint/types";
+import { getLNDSettings, LND } from "../instances/lnd";
+import type { ElysiaWS } from "elysia/ws";
 
 export const auth = (app: Elysia) =>
     app
@@ -370,7 +373,6 @@ export const auth = (app: Elysia) =>
                 };
                 await mint.createKeysetPair()
                 const keysets = await getAll(keysetsTable)
-                console.log(keysets)
                 return {
                     success: true,
                     message: message,
@@ -424,7 +426,10 @@ export const auth = (app: Elysia) =>
 
             open: (ws) => {
                 ws.subscribe('message')
-                setInterval(()=> ws.send({command: 'ping', data: {}}),5000)
+                sendPing(ws)
+                setInterval(async ()=> {
+                    sendPing(ws)
+                },5000)
                 eventEmitter.on('socket-event', (e: SocketEventData)=> {
                     ws.send(e)
                 })
@@ -434,3 +439,22 @@ export const auth = (app: Elysia) =>
                 console.log(message)
             }
         })
+
+        const sendPing = async (ws: ElysiaWS) => {
+            const {cert, macaroon, socket} = await getLNDSettings()
+            const {isValid, detail, state} = await testBackendConnection(socket, macaroon, cert)
+            const pingData: PingData = {
+                backendConnection: {
+                    isConnected: isValid,
+                    detail: detail
+                }
+            }    
+            if (isValid) {
+                const lnd = await LND.getInstance()
+                const lnBalance = await lnd.lightning.channelBalance()
+                const walletBalance = await lnd.lightning.walletBalance()
+                pingData.backendConnection.lnBalance = {outbound: parseInt(lnBalance.localBalance?.sat??'0'), inbound: parseInt(lnBalance.remoteBalance?.sat??'0')}
+                pingData.backendConnection.onchainBalance = {confirmed: parseInt(walletBalance.confirmedBalance??'0'), confirming: parseInt(walletBalance.unconfirmedBalance??'0')}
+            }
+            ws.send({command: 'ping', data: pingData})
+        } 

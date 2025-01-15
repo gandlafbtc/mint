@@ -18,7 +18,6 @@
 	let isLoading = $state(false);
 
 	const signup = async () => {
-        console.log(password)
 		if (password.length < 12) {
 			toast.warning('Password must be 12 characters or longer');
 			return;

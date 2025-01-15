@@ -4,7 +4,9 @@
 	import * as Breadcrumb from "$lib/components/ui/breadcrumb/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+	import BackendConnectionIndicator from "$lib/elements/BackendConnectionIndicator.svelte";
 	import DarkModeToggle from "$lib/elements/DarkModeToggle.svelte";
+	import MotdInput from "$lib/elements/settings/MOTDInput.svelte";
 	import type { Component, Snippet } from "svelte";
 	interface Props {children: Snippet}
 	
@@ -17,10 +19,10 @@
 		<header
 			class="flex pr-2 justify-between h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
 		>
-			<div class="flex items-center gap-2 px-4">
+			<div class="flex items-center gap-2 px-4 w-full">
 				<Sidebar.Trigger class="-ml-1" />
 				<Separator orientation="vertical" class="mr-2 h-4" />
-				<Breadcrumb.Root>
+				<!-- <Breadcrumb.Root>
 					<Breadcrumb.List>
 						{#each page.url.pathname.split('/') as pathname}
 						{#if pathname}
@@ -32,9 +34,15 @@
 						{/if}
 						{/each}
 					</Breadcrumb.List>
-				</Breadcrumb.Root>
+				</Breadcrumb.Root> -->
+				<div class="w-full">
+					<MotdInput></MotdInput>
+				</div>
 			</div>
-			<DarkModeToggle></DarkModeToggle>
+			<div class="flex gap-2 items-center">
+
+				<DarkModeToggle></DarkModeToggle>
+			</div>
 		</header>
 		{@render children()}
 	</Sidebar.Inset>

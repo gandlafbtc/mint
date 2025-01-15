@@ -60,7 +60,6 @@ export class LNDBackend implements Lightning {
     }
     async getInvoiceAmount(request: string): Promise<{ amount: number; }> {
         const lnd = await LND.getInstance()
-        console.log(request)
         const {numSatoshis} =await lnd.lightning.decodePayReq({payReq: request})
         return {amount: parseInt(numSatoshis)}
     }

@@ -11,11 +11,7 @@ export class LND {
     }
     public static async getInstance(): Promise<LndRpcApis> {
         if (!LND.instance) {
-            const settings = await getAll(settingsTable)
-            console.log(settings)
-            const socket = settings.find(s=>s.key==='backend-rpc-host')?.value
-            const macaroon = settings.find(s=>s.key==='backend-macaroon')?.value
-            const cert = settings.find(s=>s.key==='backend-tls-cert')?.value
+            const {socket , macaroon, cert} = await getLNDSettings()
             const { isValid } = await testBackendConnection(socket, macaroon, cert)
             if (!isValid) {
                 throw new Error("Could not create LND instance");
@@ -31,4 +27,12 @@ export class LND {
         LND.destroyInstance()
         return LND.getInstance()
     }
+}
+
+export const getLNDSettings = async () => {
+    const settings = await getAll(settingsTable)
+    const socket = settings.find(s=>s.key==='backend-rpc-host')?.value
+    const macaroon = settings.find(s=>s.key==='backend-macaroon')?.value
+    const cert = settings.find(s=>s.key==='backend-tls-cert')?.value
+    return {socket, macaroon, cert}
 }

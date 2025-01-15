@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import FormButton from '$lib/components/ui/form/form-button.svelte';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import BackendTypeSelector from '$lib/elements/settings/BackendTypeSelector.svelte';
@@ -6,10 +6,16 @@
 	import { settings } from '../../../stores';
 	import { LoaderCircle } from 'lucide-svelte';
 	import { ensureError } from '../../../errors';
-	let backendType = $state('LND');
-	let backendHost = $state('');
-	let backendCert = $state('');
-	let backendMacaroon = $state('');
+	import type { ConnectPayload } from '@mnt/common/types';
+
+	interface Props {backendSettings?: ConnectPayload}
+	
+	let {backendSettings}: Props = $props();
+
+	let backendType = $state(backendSettings?.type??'LND');
+	let backendHost = $state(backendSettings?.rpcHost??'');
+	let backendCert = $state(backendSettings?.tlsCertHex??'');
+	let backendMacaroon = $state(backendSettings?.macaroonHex??'');
 	let isLoading = $state(false);
 	const connectBackend = async () => {
 		try {

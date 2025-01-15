@@ -4,13 +4,14 @@ import { auth } from './server/auth'
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { getAll } from './persistence/generic'
-import { keysetsTable, settingsTable, type Keyset, type Setting } from '@mnt/common/db'
+import { keysetsTable, settingsTable } from '@mnt/common/db'
 import type { GetInfoResponse, MintKeyset, SerializedBlindedMessage } from '@cashu/cashu-ts'
 import type { SerializedProof } from '@cashu/crypto/modules/common';
 
 import { getActiveKeys, getKeysetById } from './persistence/keysets'
 import { mint } from './instances/mint'
 import { ensureError } from './errors'
+import type { Keyset, Setting } from '@mnt/common/db/types'
 
 const app = new Elysia()
     .use(swagger({

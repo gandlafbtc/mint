@@ -51,14 +51,6 @@
 						title: "Backend",
 						url: "/settings/backend",
 					},
-					{
-						title: "Mint",
-						url: "/settings/mint",
-					},
-					{
-						title: "Security",
-						url: "/settings/security",
-					},
 				],
 			},
 		],
@@ -90,6 +82,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import type { ComponentProps } from "svelte";
 	import { Key, Landmark, LayoutDashboard } from "lucide-svelte";
+	import NavStatus from "./nav-status.svelte";
 
 	let {
 		ref = $bindable(null),
@@ -103,7 +96,11 @@
 		<TeamSwitcher mints={data.mints} />
 	</Sidebar.Header>
 	<Sidebar.Content>
+
+
+		<NavStatus/>
 		<NavProjects insights={data.insights} />
+
 		<NavMain items={data.navMain} />
 	</Sidebar.Content>
 	<Sidebar.Footer>

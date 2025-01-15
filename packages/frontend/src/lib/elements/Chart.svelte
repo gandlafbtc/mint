@@ -27,47 +27,44 @@
 	let options = $derived({
 		theme: {
       mode: 'dark', 
-      palette: 'palette1', 
+      palette: 'palette0', 
       monochrome: {
           enabled: false,
-          color: '#255aee',
           shadeTo: 'light',
           shadeIntensity: 0.65
       },
   },
 		tooltip: {
-      enabled: true,
-      enabledOnSeries: undefined,
-      followCursor: false,
-      custom: undefined,
-      hideEmptySeries: true,
-      fillSeriesColor: false,
-      theme: true,
-      style: {
-        fontSize: '12px',
-        fontFamily: undefined,
-      },
-      onDatasetHover: {
-          highlightDataSeries: false,
-      },
-      x: {
-          show: true,
-          formatter: function (value: number) {
+			enabled: true,
+			enabledOnSeries: undefined,
+			followCursor: false,
+			custom: undefined,
+			hideEmptySeries: true,
+			fillSeriesColor: false,
+			theme: true,
+			style: {
+				fontSize: '12px',
+				fontFamily: undefined
+			},
+			onDatasetHover: {
+				highlightDataSeries: false
+			},
+			x: {
+				show: true,
+				formatter: function (value: number) {
 					return new Date(value * 1000).toLocaleTimeString(); // The formatter function overrides format property
-},
-      },
-      y: {
-          formatter: undefined,
-          title: {
-              formatter: (seriesName) => seriesName,
-          },
-      },
-  },
+				}
+			},
+			y: {
+				formatter: undefined,
+				title: {
+					formatter: (seriesName) => seriesName
+				}
+			}
+		},
 		grid: {
-			row: {
-			},
-			column: {
-			},
+			row: {},
+			column: {},
 			xaxis: {
 				lines: {
 					show: false
@@ -79,7 +76,7 @@
 				}
 			}
 		},
-		
+
 		chart: {
 			type: 'bar',
 			height: 500
@@ -92,7 +89,6 @@
 			}
 		},
 		series: [
-		
 			{
 				data: groupByAndSum($promisesStore.map((p) => [p.createdAt, p.amount])),
 				name: 'Promises'
@@ -100,13 +96,22 @@
 			{
 				data: groupByAndSum($proofsStore.map((p) => [p.createdAt, p.amount])),
 				name: 'Proofs'
-			},
+			}
 		]
 	});
 	$effect(() => {
 		console.log(options);
 		if (chart) {
-			chart.updateOptions(options);
+			chart.updateSeries([
+			{
+				data: groupByAndSum($promisesStore.map((p) => [p.createdAt, p.amount])),
+				name: 'Promises'
+			},
+			{
+				data: groupByAndSum($proofsStore.map((p) => [p.createdAt, p.amount])),
+				name: 'Proofs'
+			}
+		]);
 		}
 	});
 
@@ -119,7 +124,13 @@
 	});
 </script>
 
-<div class="w-full">
+<div class="flex w-full flex-col gap-3">
+	<div class="flex items-center gap-2">
+		<p class="font-bold">Live</p>
+		<div class="relative h-1 w-1 rounded-full bg-red-500">
+			<div class="absolute -ml-0.5 -mt-0.5 h-2 w-2 animate-ping rounded-full bg-red-500"></div>
+		</div>
+	</div>
 	<div bind:this={chartElem} class="w-full"></div>
 </div>
 

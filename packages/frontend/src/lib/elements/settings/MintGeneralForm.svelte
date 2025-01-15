@@ -8,10 +8,16 @@
 	import type { UpdatePayload } from '../../../stores';
 	import { toast } from 'svelte-sonner';
 	import { ensureError } from '../../../errors';
-	let mintName = $state('');
-	let mintDescription = $state('');
-	let mintIconUrl = $state('');
-	let mintDescriptionLong = $state('');
+	import type { GeneralSettings } from '@mnt/common/types';
+
+	interface Props { mintSettings?: GeneralSettings }
+	
+	let {mintSettings}: Props = $props();
+
+	let mintName = $state(mintSettings?.mintName??'');
+	let mintDescription = $state(mintSettings?.mintDescription??'');
+	let mintIconUrl = $state(mintSettings?.mintIconUrl??'');
+	let mintDescriptionLong = $state(mintSettings?.mintDescriptionLong??'');
 	let isLoading = $state(false);
 
     const updateSettings = async () => {

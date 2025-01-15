@@ -17,6 +17,7 @@
   "exports": {
     ".": "./index.ts",
     "./db": "./src/db/schema.ts",
-    "./db/types": "./src/db/types.ts"
+    "./db/types": "./src/db/types.ts",
+    "./types": "./src/types.ts"
   }
 }
