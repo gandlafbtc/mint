@@ -1,15 +1,15 @@
 import jwt from '@elysiajs/jwt'
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { auth } from './server/auth'
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { getAll } from './persistence/generic'
 import { keysetsTable, settingsTable } from '@mnt/common/db'
-import type { GetInfoResponse, MintKeyset, SerializedBlindedMessage } from '@cashu/cashu-ts'
+import { CheckStateEnum, type GetInfoResponse, type MintKeyset, type SerializedBlindedMessage } from '@cashu/cashu-ts'
 import type { SerializedProof } from '@cashu/crypto/modules/common';
 
 import { getActiveKeys, getKeysetById } from './persistence/keysets'
-import { mint } from './instances/mint'
+import { mint, persistence } from './instances/mint'
 import { ensureError } from './errors'
 import type { Keyset, Setting } from '@mnt/common/db/types'
 
@@ -157,8 +157,9 @@ const app = new Elysia()
             .get('/melt/quote/bolt11/:quote', async ({ params: { quote }, set }) => {
                 try {
                     const { quote: q, amount, fee_reserve, state, expiry, payment_preimage } = await mint.getMeltQuote(quote)
+                    const change = await mint.getChange(quote)
                     return {
-                        quote: q, amount, fee_reserve, state, expiry, payment_preimage
+                        quote: q, amount, fee_reserve, state, expiry, payment_preimage, change: change.map(c => { return { C_: c.C_, id: c.id, amount: c.amount } })
                     }
                 } catch (error) {
                     set.status = 400;
@@ -170,11 +171,11 @@ const app = new Elysia()
                     };
                 }
             })
-            .post('/melt/quote/bolt11', async ({body, set}) => {
+            .post('/melt/quote/bolt11', async ({ body, set }) => {
                 try {
-                    const {unit, request} = body as {unit: string, request:string}
+                    const { unit, request } = body as { unit: string, request: string }
 
-                    const { quote: q, amount, fee_reserve, state, expiry, payment_preimage } = await mint.meltQuote(request,unit)
+                    const { quote: q, amount, fee_reserve, state, expiry, payment_preimage } = await mint.meltQuote(request, unit)
                     return {
                         quote: q, amount, fee_reserve, state, expiry, payment_preimage
                     }
@@ -188,10 +189,10 @@ const app = new Elysia()
                     };
                 }
             })
-            .post('/melt/bolt11', async ({body, set}) => {
+            .post('/melt/bolt11', async ({ body, set }) => {
                 try {
-                    const {quote, inputs} = body as {quote: string, inputs: SerializedProof[]}
-                    const updatedQuote = await mint.melt(quote, inputs)
+                    const { quote, inputs, outputs } = body as { quote: string, inputs: SerializedProof[], outputs?: SerializedBlindedMessage[] }
+                    const updatedQuote = await mint.melt(quote, inputs, outputs)
                     return updatedQuote
                 } catch (error) {
                     set.status = 400;
@@ -203,6 +204,98 @@ const app = new Elysia()
                     };
                 }
             })
+            .post('/checkstate', async ({ body, set }) => {
+                try {
+                    const { Ys } = body as { Ys: string[] }
+                    const states = await mint.checkToken(Ys)
+                    for (const y of Ys) {
+                        if (!states.find(s => s.Y === y)) {
+                            states.push({ Y: y, state: CheckStateEnum.UNSPENT })
+                        }
+                    }
+                    return { states }
+                } catch (error) {
+                    set.status = 400;
+                    const err = ensureError(error)
+                    console.error(err)
+                    return {
+                        detail: err.message,
+                        code: 1337
+                    };
+                }
+            }//Schema
+                , {
+                    body: t.Object({
+                        Ys: t.Array(t.String())
+                    }),
+                    response:
+                    {
+                        400: t.Object({
+                            code: t.Number(),
+                            detail: t.String()
+                        }),
+                        200: t.Object({
+                            states: t.Array(t.Object({
+                                Y: t.String(),
+                                state: t.String()
+                            }))
+                        })
+
+                    }
+                }
+            )
+            .post('/restore', async ({ body, set }) => {
+                try {
+                    const { outputs } = body
+                    const restoredOutputs = await mint.restore(outputs)
+                    return restoredOutputs
+                } catch (error) {
+                    set.status = 400;
+                    const err = ensureError(error)
+                    console.error(err)
+                    return {
+                        detail: err.message,
+                        code: 1337
+                    };
+                }
+            }
+                //Schema
+                , {
+                    body: t.Object({
+                        outputs: t.Array(t.Object({
+                            amount: t.Number(),
+                            id: t.String(),
+                            B_: t.String(),
+                        }))
+                    }),
+                    response:
+                    {
+                        400: t.Object({
+                            code: t.Number(),
+                            detail: t.String()
+                        }),
+                        200:
+                            t.Object({
+                                outputs: t.Array(t.Object({
+                                    amount: t.Number(),
+                                    id: t.String(),
+                                    B_: t.String(),
+                                })),
+                                signatures: t.Array(t.Object({
+                                    amount: t.Number(),
+                                    id: t.String(),
+                                    C_: t.String(),
+                                })),
+                                promises: t.Array(t.Object({
+                                    amount: t.Number(),
+                                    id: t.String(),
+                                    C_: t.String(),
+                                }))
+                            }
+                            )
+                    }
+                }
+            )
     )
     .use(cors({
         // origin: /.*\.saltyaom\.com$/

@@ -1,20 +1,21 @@
-import { MintError, type Secret } from '../types/index';
+import { MintError } from '../types/index';
 import { findPrivKeyForAmountFromKeyset, randomHexString } from "../util/util";
-import { type KeysetPair,createBlindSignature,createNewMintKeys, verifyProof } from '@cashu/crypto/modules/mint';
-import { pointFromHex , type BlindSignature, type Keyset, type Proof, type SerializedBlindSignature, type SerializedProof } from "@cashu/crypto/modules/common";
-import { CheckStateEnum, MeltQuoteState } from "@cashu/cashu-ts";
-import { deserializeProof, serializeProof } from "@cashu/crypto/modules/client";
+import { type KeysetPair, createBlindSignature, createNewMintKeys, verifyProof } from '@cashu/crypto/modules/mint';
+import { hashToCurve, pointFromHex, type Keyset, type SerializedBlindSignature, type SerializedProof } from "@cashu/crypto/modules/common";
+import { CheckStateEnum, MeltQuoteState, type MeltQuoteResponse } from "@cashu/cashu-ts";
+import { deserializeProof } from "@cashu/crypto/modules/client";
 import type { Lightning } from '../interface/Lightning';
 import { schnorr } from "@noble/curves/secp256k1";
 import { mnemonicToSeed } from "@scure/bip39";
 import { HDKey } from "@scure/bip32";
-import { bytesToHex, hexToBytes } from "@noble/curves/abstract/utils";
-import { mint, persistence } from "../../instances/mint";
-import type { InsertMeltQuote, InsertMintQuote, MeltQuote, MintQuote } from "@mnt/common/db/types";
-import { date } from "drizzle-orm/mysql-core";
-import { env } from "bun";
+import { bytesToHex } from "@noble/curves/abstract/utils";
+import { persistence } from "../../instances/mint";
+import type { BlindedMessage, InsertBlindedMessage, InsertMeltQuote, InsertMintQuote, MeltQuote, MintQuote } from "@mnt/common/db/types";
 import { settings } from "./Settings";
 import { MintQuoteState, type SerializedBlindedMessage } from "@cashu/cashu-ts";
+import { getAmountsForAmount } from '../../util';
+import { db } from '../../db/db';
+import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core';
 
 export class CashuMint {
 
@@ -24,7 +25,7 @@ export class CashuMint {
         this.lightningInterface = lightningInterface
     }
 
-    async createKeysFromSeed(menmonicOrseed?: string|Uint8Array): Promise<{pubKey: Uint8Array, privKey: Uint8Array}> {
+    async createKeysFromSeed(menmonicOrseed?: string | Uint8Array): Promise<{ pubKey: Uint8Array, privKey: Uint8Array }> {
         let privKey = undefined
         let pubKey = undefined
         if (!menmonicOrseed) {
@@ -40,15 +41,15 @@ export class CashuMint {
             const derived = hdkey.derive(derivationPath);
             privKey = derived.privateKey
             if (!privKey) {
-                throw new MintError(601,'Could not create keys from seed')
+                throw new MintError(601, 'Could not create keys from seed')
             }
         }
         pubKey = schnorr.getPublicKey(privKey)
-        const persisted = await persistence.insertSeedKeys({privKey: bytesToHex(privKey), pubKey: bytesToHex(pubKey)})
+        const persisted = await persistence.insertSeedKeys({ privKey: bytesToHex(privKey), pubKey: bytesToHex(pubKey) })
         if (!persisted?.privKey) {
-            throw new MintError(602,'Could not persist keys from seed')
+            throw new MintError(602, 'Could not persist keys from seed')
         }
-        return {privKey, pubKey}
+        return { privKey, pubKey }
     }
 
     async createKeysetPair() {
@@ -66,32 +67,36 @@ export class CashuMint {
     }
 
     async swap(inputs: SerializedProof[], outputs: SerializedBlindedMessage[]): Promise<SerializedBlindSignature[]> {
-        const isValid = await this.validateProofs(inputs)
-        if (!isValid) {
-            throw new MintError(111, 'Token not valid');
-        }
-        const isAmountMatch = inputs.reduce((prev, curr) => prev+curr.amount,0)===outputs.reduce((prev, curr) => prev+curr.amount,0)
+        let signedOutputs: InsertBlindedMessage[] = []
+
+        await this.validateProofs(inputs)
+        await this.checkProofsSpent(inputs)
+
+        const isAmountMatch = inputs.reduce((prev, curr) => prev + curr.amount, 0) === outputs.reduce((prev, curr) => prev + curr.amount, 0)
         if (!isAmountMatch) {
             throw new MintError(110, 'input and output amount dont match');
         }
-        //todo put into transaction
-        
         const keys = await this.getKeys(outputs[0].id)
-
-        const signedOutputs = outputs.map((o)=> {
+        signedOutputs = outputs.map((o) => {
             if (!keys.privKeys[o.amount]) {
-                throw new MintError(123,"Keyset does not have amount: "+o.amount)
+                throw new MintError(123, "Keyset does not have amount: " + o.amount)
             }
-            return { changeId:null, quoteId: null, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true)}
+            return { changeId: null, quoteId: null, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true) }
         })
-        //todo put this into transaction and check against amount of issued signatures
-        await persistence.insertProofs(inputs.map(p=> {return {...p, status: CheckStateEnum.UNSPENT}}))
-        await persistence.insertMessages(signedOutputs)
-        return signedOutputs.map(s=> { return {
-            C_:s.C_,
+        
+        const enc = new TextEncoder()
+        await db.transaction(async (tx)=>{
+            await persistence.insertProofs(inputs.map(p => { return { ...p, status: CheckStateEnum.SPENT, Y: hashToCurve(enc.encode(p.secret)).toHex(true) } }), tx)
+            await persistence.insertMessages(signedOutputs, tx)
+        })
+    return signedOutputs.map(s => {
+        return {
+            C_: s.C_,
             amount: s.amount,
             id: s.id
-        }})
+        }
+    })
+
     }
 
     async mintQuote(amount: number, method: "bolt11", unit: "sat"): Promise<MintQuote> {
@@ -106,11 +111,11 @@ export class CashuMint {
             if (invoice.rHash instanceof Buffer) {
                 invoice.rHash = new Uint8Array(invoice.rHash)
             }
-            invoice.rHash=bytesToHex(invoice.rHash)
+            invoice.rHash = bytesToHex(invoice.rHash)
         }
         const mintQuote: InsertMintQuote = {
             state: "UNPAID",
-            expiry: Math.floor(Date.now()/1000)+settings.quoteExpiry,
+            expiry: Math.floor(Date.now() / 1000) + settings.quoteExpiry,
             quote: randomHexString(),
             request: invoice.paymentRequest,
             hash: invoice.rHash,
@@ -124,7 +129,7 @@ export class CashuMint {
     async getMintQuote(quote: string): Promise<MintQuote> {
         const mintQuote = await persistence.getMintQuote(quote)
         if (!mintQuote) {
-            throw new MintError(120,'No mint quote found with id:' + quote)
+            throw new MintError(120, 'No mint quote found with id:' + quote)
         }
         const invoice = await this.lightningInterface.getInvoice(mintQuote.hash)
         if (invoice.state === "SETTLED" && mintQuote.state !== 'ISSUED') {
@@ -138,51 +143,60 @@ export class CashuMint {
         const mintQuote = await this.getMintQuote(quote)
         //check if mint quote was paid
         if (!outputs.length) {
-            throw new MintError(121,'No outputs provided')
+            throw new MintError(121, 'No outputs provided')
         }
-        if (mintQuote.state===MintQuoteState.ISSUED) {
-            throw new MintError(121,'Mint quote has already been isssued:' + quote)
+        if (mintQuote.state === MintQuoteState.ISSUED) {
+            throw new MintError(121, 'Mint quote has already been isssued:' + quote)
         }
-        if (mintQuote.state===MintQuoteState.UNPAID) {
-            throw new MintError(121,'Mint quote has not been paid:' + quote)
+        if (mintQuote.state === MintQuoteState.UNPAID) {
+            throw new MintError(121, 'Mint quote has not been paid:' + quote)
         }
-        
+
         // check if proof amount matches quote
-        if (outputs.reduce((curr, acc)=>{return curr+acc.amount},0) !== mintQuote.amount) {
-            throw new MintError(123,'Proof amount does not match quote:' + quote)
+        if (outputs.reduce((curr, acc) => { return curr + acc.amount }, 0) !== mintQuote.amount) {
+            throw new MintError(123, 'Proof amount does not match quote:' + quote)
         }
         const keys = await this.getKeys(outputs[0].id)
 
-        const signedOutputs = outputs.map((o)=> {
+        const signedOutputs = outputs.map((o) => {
             if (!keys.privKeys[o.amount]) {
-                throw new MintError(123,"Keyset does not have amount: "+o.amount)
+                throw new MintError(123, "Keyset does not have amount: " + o.amount)
             }
-            return { changeId:null, quoteId: quote, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true)}
+            return { changeId: null, quoteId: quote, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true) }
         })
-        //todo put this into transaction and check against amount of issued signatures
-        await persistence.updateMintQuoteState(quote, MintQuoteState.ISSUED)
-        await persistence.insertMessages(signedOutputs)
-        return signedOutputs.map(s=> { return {
-            C_:s.C_,
-            amount: s.amount,
-            id: s.id
-        }})
+        await db.transaction(async (tx)=> {
+            await persistence.updateMintQuoteState(quote, MintQuoteState.ISSUED, tx)
+            await persistence.insertMessages(signedOutputs, tx)
+            //todo check against amount of issued signatures
+        })
+        return signedOutputs.map(s => {
+            return {
+                C_: s.C_,
+                amount: s.amount,
+                id: s.id
+            }
+        })
     }
 
     async getMeltQuote(quote: string): Promise<MeltQuote> {
         const meltQuote = await persistence.getMeltQuote(quote)
         if (!meltQuote) {
-            throw new MintError(120,'No melt quote found with id:' + quote)
+            throw new MintError(120, 'No melt quote found with id:' + quote)
         }
         return meltQuote
     }
 
+    async getChange(quote: string): Promise<BlindedMessage[]> {
+        const change = await persistence.getChange(quote)
+        return change
+    }
+
     async meltQuote(request: string, unit = "sat"): Promise<MeltQuote> {
-        const {fee} = await this.lightningInterface.estimateFee(request)
+        const { fee } = await this.lightningInterface.estimateFee(request)
         const { amount } = await this.lightningInterface.getInvoiceAmount(request)
         const meltQuote: InsertMeltQuote = {
             state: "UNPAID",
-            expiry: Math.floor(Date.now()/1000)+settings.quoteExpiry,
+            expiry: Math.floor(Date.now() / 1000) + settings.quoteExpiry,
             quote: randomHexString(),
             request,
             unit: unit,
@@ -193,61 +207,130 @@ export class CashuMint {
         return await persistence.createMeltQuote(meltQuote)
     }
 
-    async melt(quote: string, inputs: SerializedProof[], outputs?: SerializedBlindedMessage[]): Promise<MeltQuote & {signatures?: SerializedBlindSignature[]}> {
-        const isValid = await this.validateProofs(inputs)
+    async melt(quote: string, inputs: SerializedProof[], outputs?: SerializedBlindedMessage[]): Promise<MeltQuoteResponse> {
+        await this.validateProofs(inputs)
+        await this.checkProofsSpent(inputs)
         const meltQuote = await persistence.getMeltQuote(quote)
         if (!meltQuote) {
             throw new MintError(111, 'Quote not found');
         }
-        const isAmountMatch = inputs.reduce((prev, curr) => prev+curr.amount,0)===meltQuote.amount + meltQuote.fee_reserve
+        const isAmountMatch = inputs.reduce((prev, curr) => prev + curr.amount, 0) === meltQuote.amount + meltQuote.fee_reserve
 
         if (!isAmountMatch) {
             throw new MintError(111, 'melt failed amounts do not match: fee_reserve + amount != sum(inputs)');
         }
-        if (!isValid) {
-            throw new MintError(111, 'Token not valid');
-        }
-        await persistence.insertProofs(inputs.map(p=> {return {
-            ...p, status: CheckStateEnum.PENDING
-        }}))
-        const { preimage } = await this.lightningInterface.payInvoice(meltQuote.request, meltQuote.fee_reserve*1000)
-        if ( preimage ) {
-            const updatedQuote = await persistence.updateMeltQuoteState(quote, MeltQuoteState.PAID)
-            await persistence.updateProofStatus(inputs.map(p=> p.secret), CheckStateEnum.SPENT)
+        const enc: TextEncoder = new TextEncoder()
+
+        const { preimage, fee } = await this.lightningInterface.payInvoice(meltQuote.request, meltQuote.fee_reserve * 1000)
+        let insertedMessages: BlindedMessage[] | undefined = undefined
+        if (preimage) {
+            let updatedQuoteResponse: MeltQuoteResponse | undefined = undefined
+            await db.transaction(async (tx)=> {
+    
+            await persistence.insertProofs(inputs.map(p => {
+                return {
+                    ...p, status: CheckStateEnum.PENDING,
+                    Y: hashToCurve(enc.encode(p.secret)).toHex(true)
+                }
+            }), tx)
+            const feeDiff = meltQuote.fee_reserve - fee
+            if (outputs?.length) {
+                const keys = await this.getKeys(outputs[0].id)
+                const keyAmounts = Object.keys(keys.pubKeys).map(k => parseInt(k)).sort((a: number, b: number) => b-a)
+                const diffAmounts = getAmountsForAmount(feeDiff, keyAmounts)
+                const outputsWithAmount: SerializedBlindedMessage[] = []
+                for (let i = 0; i < diffAmounts.length; i++) {
+                    outputsWithAmount.push({
+                        amount: diffAmounts[i],
+                        B_: outputs[i].B_,
+                        id: outputs[i].id
+                    })
+                }
+
+                const signedOutputs = outputsWithAmount.map((o) => {
+                    if (!keys.privKeys[o.amount]) {
+                        throw new MintError(123, "Keyset does not have amount: " + o.amount)
+                    }
+                    return { changeId: quote, quoteId: null, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true) }
+                })
+                insertedMessages = await persistence.insertMessages(signedOutputs, tx)
+            }
+            await persistence.updateProofStatus(inputs.map(p => p.secret), CheckStateEnum.SPENT, tx)
+            const updatedQuote = await persistence.updateMeltQuoteState(quote, MeltQuoteState.PAID, tx)
+            updatedQuoteResponse = {
+                amount: updatedQuote.amount,
+                expiry: updatedQuote.expiry,
+                fee_reserve: updatedQuote.fee_reserve,
+                payment_preimage: updatedQuote.payment_preimage,
+                quote: updatedQuote.quote,
+                state: updatedQuote.state as MeltQuoteState,
+                change: insertedMessages?.map(m => { return { amount: m.amount, C_: m.C_, id: m.id } })
+            }
+            }) 
             //todo create fee return sigs
-            return updatedQuote
+            if (!updatedQuoteResponse) {
+                throw new Error("Transaction error");            
+            }            
+
+            return updatedQuoteResponse
         }
         else {
             throw new Error("Melt failed: No preimage");
         }
     }
 
-    checkToken(proofs: Secret[]): Promise<{ spendable: boolean[]; pending: boolean[]; }> {
-        throw new Error("Method not implemented.");
+
+
+    async checkToken(Ys: string[]): Promise<{ Y: string, state: CheckStateEnum }[]> {
+        const proofs = await persistence.getProofsByYs(Ys)
+        return proofs.map(p => { return { Y: p.Y, state: p.status as CheckStateEnum } })
     }
 
-    private async validateProofs(proofs: SerializedProof[]): Promise<boolean> {
+    async restore(restoreBms: SerializedBlindedMessage[]): Promise<{ outputs: SerializedBlindedMessage[], signatures: SerializedBlindSignature[], promises: SerializedBlindSignature[] }> {
+        const BMs = await persistence.getBMsByB_(restoreBms.map(b => b.B_))
+        const outputs: SerializedBlindedMessage[] = []
+        const signatures: SerializedBlindSignature[] = []
+        const promises: SerializedBlindSignature[] = []
+
+        const sortedBMs: BlindedMessage[] = []
+
+        for (const bm of restoreBms) {
+            const bmToSort = BMs.find(b=>b.B_ === bm.B_)
+            if (bmToSort) {
+                sortedBMs.push(bmToSort)
+            }
+        }
+
+        for (const bm of sortedBMs) {
+            outputs.push({ amount: bm.amount, B_: bm.B_, id:  bm.id})
+            signatures.push({ amount: bm.amount, C_: bm.C_, id:  bm.id})
+            promises.push({ amount: bm.amount, C_: bm.C_, id:  bm.id})
+        }
+        return { outputs, signatures, promises }
+    }
+
+    private async validateProofs(proofs: SerializedProof[]): Promise<void> {
         const keysets = await this.getKeysets()
-        const keysetIds = keysets.map(ks=> ks.id)
-        const containsUnknownKeysetId = proofs.find(p=>!keysetIds.includes(p.id))
+        const keysetIds = keysets.map(ks => ks.id)
+        const containsUnknownKeysetId = proofs.find(p => !keysetIds.includes(p.id))
         if (containsUnknownKeysetId) {
             throw new MintError(100, "proofs contain unknown or disabled keyset ids")
         }
-        const secrets = proofs.map(p=> p.secret)
-        const containsSpentSecret = await persistence.containsSpentSecret(secrets)
-        if (containsSpentSecret)  {
-            throw new MintError(101, 'contains already spent proof');
-        }
-        const proofKeysets = [...new Set(proofs.map(p=> p.id))]
+        const proofKeysets = [...new Set(proofs.map(p => p.id))]
         const keys: KeysetPair[] = []
         for (const ksId of proofKeysets) {
             keys.push(await this.getKeys(ksId))
         }
-        const containsInvalidProof = proofs.find(p => !verifyProof(deserializeProof(p), findPrivKeyForAmountFromKeyset(keys, p.id,p.amount)))
-
+        const containsInvalidProof = proofs.find(p => !verifyProof(deserializeProof(p), findPrivKeyForAmountFromKeyset(keys, p.id, p.amount)))
         if (containsInvalidProof) {
             throw new MintError(102, 'contains invalid proof');
         }
-        return true
+    }
+    private async checkProofsSpent(proofs: SerializedProof[]): Promise<void> {
+        const secrets = proofs.map(p => p.secret)
+        const containsSpentSecret = await persistence.containsSpentSecret(secrets)
+        if (containsSpentSecret) {
+            throw new MintError(101, 'contains already spent proof');
+        }
     }
 }

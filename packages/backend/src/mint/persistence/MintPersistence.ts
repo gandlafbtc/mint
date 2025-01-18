@@ -5,13 +5,14 @@ import { upsertSettings } from "../../persistence/settings";
 import { SETTINGS_VERSION } from "../../const";
 import { db } from "../../db/db";
 import { blindedMessagesTable, keysetsTable, keysTable, meltQuotesTable, mintQuotesTable, proofsTable } from "@mnt/common/db";
-import { type InsertBlindedMessage, type InsertMeltQuote, type InsertMintQuote, type InsertProof, type Keys, type Keyset, type MeltQuote, type MintQuote } from "@mnt/common/db/types";
+import { type BlindedMessage, type InsertBlindedMessage, type InsertMeltQuote, type InsertMintQuote, type InsertProof, type Keys, type Keyset, type MeltQuote, type MintQuote, type Proof } from "@mnt/common/db/types";
 
 import { bytesToHex } from "@noble/hashes/utils";
 import { eq, inArray } from "drizzle-orm";
 import { getKeypairById, getKeysetById } from "../../persistence/keysets";
 import type { CheckStateEnum, MeltQuoteState, MintQuoteState, ProofState } from "@cashu/cashu-ts";
 import { eventEmitter } from "../../events/emitter";
+import type { SQLiteTransaction } from "drizzle-orm/sqlite-core";
 
 export class MintPersistenceImpl {
     async insertSeedKeys(keys: { pubKey: string; privKey: string; }): Promise<{ pubKey: string; privKey: string; }> {
@@ -42,13 +43,13 @@ export class MintPersistenceImpl {
             const keys: Omit<Keys, 'uid'>[] = []
             for (const pubK of Object.entries(keysetPair.pubKeys)) {
                 const amount = parseInt(pubK[0])
-                keys.push({ amount, keysetHash: keysetPair.keysetId, pubKey: bytesToHex(pubK[1]), secKey: bytesToHex(keysetPair.privKeys[amount]), createdAt: Math.floor(Date.now()/1000), updatedAt:  Math.floor(Date.now()/1000)})
+                keys.push({ amount, keysetHash: keysetPair.keysetId, pubKey: bytesToHex(pubK[1]), secKey: bytesToHex(keysetPair.privKeys[amount]), createdAt: Math.floor(Date.now() / 1000), updatedAt: Math.floor(Date.now() / 1000) })
             }
             await t.insert(keysTable).values(keys)
             allKeysets = await t.select().from(keysetsTable)
-        }).then(()=> {
+        }).then(() => {
             return allKeysets
-        }).catch((e)=> {
+        }).catch((e) => {
             throw new Error("Transaction error");
         })
     }
@@ -62,7 +63,7 @@ export class MintPersistenceImpl {
         const insertedQuote = (await db.insert(mintQuotesTable).values(
             quote
         ).returning())?.[0]
-        eventEmitter.emit('socket-event', {command: 'inserted-mint-quote', data: {quote: insertedQuote}})
+        eventEmitter.emit('socket-event', { command: 'inserted-mint-quote', data: { quote: insertedQuote } })
         return insertedQuote
     }
 
@@ -70,8 +71,13 @@ export class MintPersistenceImpl {
         await db.update(mintQuotesTable).set(quote).where(eq(mintQuotesTable.quote, quote.quote))
         return quote
     }
-    async updateMintQuoteState(quote: string, state: MintQuoteState) {
-        await db.update(mintQuotesTable).set({ state: state }).where(eq(mintQuotesTable.quote, quote))
+    async updateMintQuoteState(quote: string, state: MintQuoteState, tx?: SQLiteTransaction<any, any, any, any>) {
+        if (tx) {
+            await tx.update(mintQuotesTable).set({ state: state }).where(eq(mintQuotesTable.quote, quote))
+        } else {
+            await db.update(mintQuotesTable).set({ state: state }).where(eq(mintQuotesTable.quote, quote))
+
+        }
     }
     async getMintQuote(quote: string): Promise<MintQuote> {
         const quotes = await db.select().from(mintQuotesTable).where(eq(mintQuotesTable.quote, quote))
@@ -81,20 +87,37 @@ export class MintPersistenceImpl {
         return quotes[0]
     }
 
-    async insertMessages(messages: InsertBlindedMessage[]) {
-        const insertedMessages = await db.insert(blindedMessagesTable).values(messages).returning()
-        eventEmitter.emit('socket-event', {command: 'inserted-messages', data: {messages: insertedMessages}})
+    async insertMessages(messages: InsertBlindedMessage[], tx?: SQLiteTransaction<any, any, any, any>) {
+        let insertedMessages
+        if (tx) {
+            insertedMessages = await tx.insert(blindedMessagesTable).values(messages).returning()
+        }
+        else {
+            insertedMessages = await db.insert(blindedMessagesTable).values(messages).returning()
+        }
+        eventEmitter.emit('socket-event', { command: 'inserted-messages', data: { messages: insertedMessages } })
         return insertedMessages
     }
 
-    async insertProofs(proofs: InsertProof[]) {
-        const insertedProofs = await db.insert(proofsTable).values(proofs).returning()
-        eventEmitter.emit('socket-event', {command: 'inserted-proofs', data:{proofs: insertedProofs}})
+    async insertProofs(proofs: InsertProof[], tx?: SQLiteTransaction<any, any, any, any>) {
+        let insertedProofs
+        if (tx) {
+            insertedProofs = await tx.insert(proofsTable).values(proofs).returning()
+        }
+        else {
+            insertedProofs = await db.insert(proofsTable).values(proofs).returning()
+        }
+        eventEmitter.emit('socket-event', { command: 'inserted-proofs', data: { proofs: insertedProofs } })
         return insertedProofs
 
     }
-    async updateProofStatus(secrets: string[], status: CheckStateEnum) {
-        await db.update(proofsTable).set({ status: status }).where(inArray(proofsTable.secret, secrets))
+    async updateProofStatus(secrets: string[], status: CheckStateEnum, tx?: SQLiteTransaction<any, any, any, any>) {
+        if (tx) {
+            await tx.update(proofsTable).set({ status: status }).where(inArray(proofsTable.secret, secrets))
+        }
+        else {
+            await db.update(proofsTable).set({ status: status }).where(inArray(proofsTable.secret, secrets))
+        }
     }
 
     async getMeltQuote(quote: string): Promise<MeltQuote> {
@@ -111,6 +134,21 @@ export class MintPersistenceImpl {
         const values = await db.select().from(proofsTable).$dynamic().where(inArray(proofsTable.status, ['SPENT', 'PENDING'])).where(inArray(proofsTable.secret, secret))
         return values.length ? true : false
     }
+    async getProofsByYs(Ys: string[]): Promise<Proof[]> {
+        const proofs = await db.select().from(proofsTable).where(inArray(proofsTable.Y, Ys))
+        return proofs
+    }
+
+    async getBMsByB_(B_s: string[]): Promise<BlindedMessage[]> {
+        const bms = await db.select().from(blindedMessagesTable).where(inArray(blindedMessagesTable.B_, B_s))
+        return bms
+    }
+
+    async getChange(quote: string): Promise<BlindedMessage[]> {
+        const bms = await db.select().from(blindedMessagesTable).where(eq(blindedMessagesTable.changeId, quote))
+        return bms
+    }
+
     async getUnitFromId(id: string): Promise<Unit | undefined> {
         throw new Error("Method not implemented.");
     }
@@ -118,11 +156,17 @@ export class MintPersistenceImpl {
         const insertedQuote = (await db.insert(meltQuotesTable).values(
             quote
         ).returning())?.[0]
-        eventEmitter.emit('socket-event', {command: 'inserted-melt-quote', data: {quote: insertedQuote}})
+        eventEmitter.emit('socket-event', { command: 'inserted-melt-quote', data: { quote: insertedQuote } })
         return insertedQuote
     }
-    async updateMeltQuoteState(quote: string, state: MeltQuoteState): Promise<MeltQuote> {
-        const updated = await db.update(meltQuotesTable).set({ state: state }).where(eq(meltQuotesTable.quote, quote)).returning()
+    async updateMeltQuoteState(quote: string, state: MeltQuoteState, tx?: SQLiteTransaction<any, any, any, any>): Promise<MeltQuote> {
+        let updated
+        if (tx) {
+            updated = await tx.update(meltQuotesTable).set({ state: state }).where(eq(meltQuotesTable.quote, quote)).returning()
+        }
+        else {
+            updated = await db.update(meltQuotesTable).set({ state: state }).where(eq(meltQuotesTable.quote, quote)).returning()
+        }
         return updated[0]
     }
     async getSeedKeys(): Promise<{ pubKey: string; privKey: string; }> {

@@ -46,7 +46,7 @@ export const keysTable = sqliteTable("keys", {
 
 export const blindedMessagesTable = sqliteTable("blinded_messages", {
     uid: int().primaryKey({ autoIncrement: true }),
-    id: text().references(()=>keysetsTable.hash),
+    id: text().references(()=>keysetsTable.hash).notNull(),
     unit: text(),
     amount: int().notNull(),
     B_: text().unique().notNull(),
@@ -60,6 +60,7 @@ export const proofsTable = sqliteTable("proofs", {
     uid: int().primaryKey({ autoIncrement: true }),
     id: text().references(()=>keysetsTable.hash).notNull(),
     secret: text().unique().notNull(),
+    Y: text().unique().notNull(),
     C: text().unique().notNull(),
     amount: int().notNull(),
     status: text().notNull(),
@@ -86,6 +87,6 @@ export const meltQuotesTable = sqliteTable("melt_quotes", {
     state: text().notNull(),
     fee_reserve: int().notNull(),
     payment_preimage: text(),
-    expiry: integer(),
+    expiry: integer().notNull(),
     ...timestamps
 });

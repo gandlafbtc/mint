@@ -161,7 +161,7 @@
 								</p>
 							</div>
 							<div class=" col-span-2 m-2 flex flex-col items-center justify-center gap-2">
-								<ProgressSuccess class="bg-yellow-400" value={(lnBalance / lnInbound) * 100} />
+								<ProgressSuccess class="bg-yellow-400" value={(lnBalance / (lnInbound+lnBalance)) * 100} />
 							</div>
 						</div>
 					</div>
