@@ -44,8 +44,12 @@
 				icon: Settings2,
 				items: [
 					{
-						title: "General",
-						url: "/settings/general",
+						title: "Mint Info",
+						url: "/settings/info",
+					},
+					{
+						title: "Mint options",
+						url: "/settings/mint-options",
 					},
 					{
 						title: "Backend",
@@ -65,11 +69,11 @@
 				url: "/keysets",
 				icon: Key,
 			},
-			{
-				name: "Charts",
-				url: "#",
-				icon: ChartPie,
-			}
+			// {
+			// 	name: "Charts",
+			// 	url: "#",
+			// 	icon: ChartPie,
+			// }
 		],
 	};
 </script>

@@ -10,7 +10,7 @@ import { getAll, getLastDay } from "../persistence/generic";
 import { upsertSettings } from "../persistence/settings";
 import { SETTINGS_VERSION } from "../const";
 import { testBackendConnection } from "../backend/test-connection";
-import { mint } from "../instances/mint";
+import { mint, persistence } from "../instances/mint";
 import { ensureError } from "../errors";
 import { getProofsCounts, totalProofed } from "../persistence/proofs";
 import { getBMsCounts, totalPromised } from "../persistence/blindedmessages";
@@ -18,6 +18,8 @@ import { eventEmitter } from "../events/emitter";
 import type { SocketEventData } from "../mint/types";
 import { getLNDSettings, LND } from "../instances/lnd";
 import type { ElysiaWS } from "elysia/ws";
+import { updateKeyset } from "../persistence/keysets";
+import type { Keyset } from "@mnt/common/db/types";
 
 export const auth = (app: Elysia) =>
     app
@@ -189,7 +191,7 @@ export const auth = (app: Elysia) =>
                 const proofsCount = await getProofsCounts()
                 const totalPromises = await totalPromised()
                 const totalProofs = await totalProofed()
-                
+
                 return {
                     success: true,
                     message: message,
@@ -215,7 +217,7 @@ export const auth = (app: Elysia) =>
         .get("/proofs", async ({ user, message, set }) => {
             try {
                 const proofsLast24h = await getLastDay(proofsTable)
-                
+
                 return {
                     success: true,
                     message: message,
@@ -238,7 +240,7 @@ export const auth = (app: Elysia) =>
         .get("/promises", async ({ user, message, set }) => {
             try {
                 const promisesLast24h = await getLastDay(blindedMessagesTable)
-                
+
                 return {
                     success: true,
                     message: message,
@@ -268,9 +270,9 @@ export const auth = (app: Elysia) =>
                     iconURL: string
                 };
                 const settingsToUpdate = body as [string, string][]
-                let settingsToUpdateObject: {key:string, value:string, version: number}[] = [] 
+                let settingsToUpdateObject: { key: string, value: string, version: number }[] = []
                 for (const setting of settingsToUpdate) {
-                    settingsToUpdateObject.push({version: SETTINGS_VERSION, key: setting[0], value: setting[1]})
+                    settingsToUpdateObject.push({ version: SETTINGS_VERSION, key: setting[0], value: setting[1] })
                 }
                 await upsertSettings(
                     settingsToUpdateObject
@@ -392,7 +394,7 @@ export const auth = (app: Elysia) =>
                 };
             }
         }).ws('/ws', {
-            beforeHandle: async ({headers, request, set, jwt})=> {
+            beforeHandle: async ({ headers, request, set, jwt }) => {
                 const authHeader = headers['sec-websocket-protocol']
                 if (!authHeader) {
                     set.status = 401
@@ -404,57 +406,75 @@ export const auth = (app: Elysia) =>
                 }
                 const { userId } = await jwt.verify(authHeader);
                 if (!userId) {
-                  set.status = 401;
-                  return {
-                    success: false,
-                    message: "Unauthorized",
-                    data: null,
-                  };
+                    set.status = 401;
+                    return {
+                        success: false,
+                        message: "Unauthorized",
+                        data: null,
+                    };
                 }
-            
+
                 const user = await db.select().from(userTable).where(eq(userTable.id, userId)).then(takeUniqueOrUndefinded);
 
                 if (!user) {
-                  set.status = 401;
-                  return {
-                    success: false,
-                    message: "Unauthorized",
-                    data: null,
-                  };
+                    set.status = 401;
+                    return {
+                        success: false,
+                        message: "Unauthorized",
+                        data: null,
+                    };
                 }
             },
 
             open: (ws) => {
                 ws.subscribe('message')
                 sendPing(ws)
-                setInterval(async ()=> {
+                setInterval(async () => {
                     sendPing(ws)
-                },5000)
-                eventEmitter.on('socket-event', (e: SocketEventData)=> {
+                }, 5000)
+                eventEmitter.on('socket-event', (e: SocketEventData) => {
                     ws.send(e)
                 })
             },
-            message(ws, message){
+            message(ws, message: string) {
                 //receiving messages
-                console.log(message)
+                try {
+                    handleCommand(message)
+                } catch (error) {
+                    console.error(error)
+                }
             }
         })
 
-        const sendPing = async (ws: ElysiaWS) => {
-            const {cert, macaroon, socket} = await getLNDSettings()
-            const {isValid, detail, state} = await testBackendConnection(socket, macaroon, cert)
-            const pingData: PingData = {
-                backendConnection: {
-                    isConnected: isValid,
-                    detail: detail
-                }
-            }    
-            if (isValid) {
-                const lnd = await LND.getInstance()
-                const lnBalance = await lnd.lightning.channelBalance()
-                const walletBalance = await lnd.lightning.walletBalance()
-                pingData.backendConnection.lnBalance = {outbound: parseInt(lnBalance.localBalance?.sat??'0'), inbound: parseInt(lnBalance.remoteBalance?.sat??'0')}
-                pingData.backendConnection.onchainBalance = {confirmed: parseInt(walletBalance.confirmedBalance??'0'), confirming: parseInt(walletBalance.unconfirmedBalance??'0')}
-            }
-            ws.send({command: 'ping', data: pingData})
-        } 
+const sendPing = async (ws: ElysiaWS) => {
+    const { cert, macaroon, socket } = await getLNDSettings()
+    const { isValid, detail, state } = await testBackendConnection(socket, macaroon, cert)
+    const pingData: PingData = {
+        backendConnection: {
+            isConnected: isValid,
+            detail: detail
+        }
+    }
+    if (isValid) {
+        const lnd = await LND.getInstance()
+        const lnBalance = await lnd.lightning.channelBalance()
+        const walletBalance = await lnd.lightning.walletBalance()
+        pingData.backendConnection.lnBalance = { outbound: parseInt(lnBalance.localBalance?.sat ?? '0'), inbound: parseInt(lnBalance.remoteBalance?.sat ?? '0') }
+        pingData.backendConnection.onchainBalance = { confirmed: parseInt(walletBalance.confirmedBalance ?? '0'), confirming: parseInt(walletBalance.unconfirmedBalance ?? '0') }
+    }
+    ws.send({ command: 'ping', data: pingData })
+}
+const handleCommand = async (message: { command: string, data: unknown }) => {
+    console.log(message.command, Date.now())
+    switch (message.command) {
+        case 'update-keyset':
+            const data = message.data as {keyset: Keyset}
+            await updateKeyset(data.keyset)
+            break;
+        case 'pong':
+            break;
+        default:
+            console.log('command not found')
+            break;
+    }
+}

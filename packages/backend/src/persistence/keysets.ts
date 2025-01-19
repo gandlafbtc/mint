@@ -4,6 +4,8 @@ import type { MintKeys } from "@cashu/cashu-ts";
 import type { KeysetPair } from "@cashu/crypto/modules/mint";
 import { hexToBytes } from "@noble/hashes/utils";
 import { keysetsTable, keysTable } from "@mnt/common/db";
+import type { Keyset } from "@mnt/common/db/types";
+import { eventEmitter } from "../events/emitter";
 
 export const getKeypairById = async (keysetId: string): Promise<KeysetPair> => {
     const values = await db.select(
@@ -117,4 +119,11 @@ export const getKeysetById = async (id: string): Promise<MintKeys[]> => {
         }
     }
     return activeKeys
+}
+
+export const updateKeyset = async (keyset: Keyset) => {
+    const values = await db.update(keysetsTable).set(keyset).where(eq(keysetsTable.hash, keyset.hash)).returning()
+    console.log(values)
+    eventEmitter.emit('socket-event', { command: 'updated-keyset', data: { keyset: values[0] } })
+    return values[0]
 }

@@ -10,12 +10,15 @@ import { mnemonicToSeed } from "@scure/bip39";
 import { HDKey } from "@scure/bip32";
 import { bytesToHex } from "@noble/curves/abstract/utils";
 import { persistence } from "../../instances/mint";
-import type { BlindedMessage, InsertBlindedMessage, InsertMeltQuote, InsertMintQuote, MeltQuote, MintQuote } from "@mnt/common/db/types";
+import type { BlindedMessage, InsertBlindedMessage, InsertMeltQuote, InsertMintQuote, MeltQuote, MintQuote, Setting } from "@mnt/common/db/types";
 import { settings } from "./Settings";
 import { MintQuoteState, type SerializedBlindedMessage } from "@cashu/cashu-ts";
 import { getAmountsForAmount } from '../../util';
 import { db } from '../../db/db';
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core';
+import { getAll } from '../../persistence/generic';
+import { keysetsTable, settingsTable } from '@mnt/common/db';
+import { type Keyset as DBKeyset } from '@mnt/common/db/types';
 
 export class CashuMint {
 
@@ -67,10 +70,18 @@ export class CashuMint {
     }
 
     async swap(inputs: SerializedProof[], outputs: SerializedBlindedMessage[]): Promise<SerializedBlindSignature[]> {
-        let signedOutputs: InsertBlindedMessage[] = []
-
+        
+        const checkKeysets: KeysetSettingsCheck = {
+            swapInKSIDs: [...new Set(outputs.map(o=> o.id))],
+            swapOutKSIDs: [...new Set(inputs.map(i=> i.id))],
+        } 
+        await this.checkKeysetSettings(checkKeysets)
+        
         await this.validateProofs(inputs)
+        
         await this.checkProofsSpent(inputs)
+        
+        let signedOutputs: InsertBlindedMessage[] = []
 
         const isAmountMatch = inputs.reduce((prev, curr) => prev + curr.amount, 0) === outputs.reduce((prev, curr) => prev + curr.amount, 0)
         if (!isAmountMatch) {
@@ -100,6 +111,9 @@ export class CashuMint {
     }
 
     async mintQuote(amount: number, method: "bolt11", unit: "sat"): Promise<MintQuote> {
+        
+        await this.checkMintSettings(amount)
+
         const invoice = await this.lightningInterface.getNewInvoice(amount)
         if (!invoice.paymentRequest) {
             throw new Error("No payment request");
@@ -141,6 +155,14 @@ export class CashuMint {
 
     async mint(quote: string, outputs: (SerializedBlindedMessage)[]): Promise<SerializedBlindSignature[]> {
         const mintQuote = await this.getMintQuote(quote)
+        await this.checkMintSettings(mintQuote.amount)
+
+        const checkKeysets: KeysetSettingsCheck = {
+            mintKSIDs: [...new Set(outputs.map(o=> o.id))],
+        } 
+
+        await this.checkKeysetSettings(checkKeysets)
+
         //check if mint quote was paid
         if (!outputs.length) {
             throw new MintError(121, 'No outputs provided')
@@ -194,6 +216,7 @@ export class CashuMint {
     async meltQuote(request: string, unit = "sat"): Promise<MeltQuote> {
         const { fee } = await this.lightningInterface.estimateFee(request)
         const { amount } = await this.lightningInterface.getInvoiceAmount(request)
+        await this.checkMeltSettings(amount)
         const meltQuote: InsertMeltQuote = {
             state: "UNPAID",
             expiry: Math.floor(Date.now() / 1000) + settings.quoteExpiry,
@@ -208,9 +231,18 @@ export class CashuMint {
     }
 
     async melt(quote: string, inputs: SerializedProof[], outputs?: SerializedBlindedMessage[]): Promise<MeltQuoteResponse> {
+        
+        const meltQuote = await persistence.getMeltQuote(quote)
+        await this.checkMeltSettings(meltQuote.amount)
+
+        const checkKeysets: KeysetSettingsCheck = {
+            meltKSIDs: [...new Set(inputs.map(i=> i.id))],
+        } 
+
+        await this.checkKeysetSettings(checkKeysets)
+
         await this.validateProofs(inputs)
         await this.checkProofsSpent(inputs)
-        const meltQuote = await persistence.getMeltQuote(quote)
         if (!meltQuote) {
             throw new MintError(111, 'Quote not found');
         }
@@ -333,4 +365,68 @@ export class CashuMint {
             throw new MintError(101, 'contains already spent proof');
         }
     }
+    private async checkKeysetSettings(keysetCheck: KeysetSettingsCheck): Promise<void> {
+        const allKeysets = await getAll(keysetsTable) as DBKeyset[]
+        for (const id of keysetCheck.meltKSIDs??[]) {
+            const unallowedMeltKs = allKeysets.find(ks=> ks.hash === id && !ks.allowMelt)            
+            if (unallowedMeltKs) {
+                throw new MintError(101, 'Melt is disabled for keyset: '+ id);
+            }
+        }
+        for (const id of keysetCheck.mintKSIDs??[]) {
+            const unallowedMintKs = allKeysets.find(ks=> ks.hash === id && !ks.allowMint)            
+            if (unallowedMintKs) {
+                throw new MintError(101, 'Minting is disabled for keyset: '+ id);
+            }
+        }
+        for (const id of keysetCheck.swapOutKSIDs??[]) {
+            const unallowedSwapOutKs = allKeysets.find(ks=> ks.hash === id && !ks.allowSwapOut)            
+            if (unallowedSwapOutKs) {
+                throw new MintError(101, 'Swap out is disabled for keyset: '+ id);
+            }
+        }
+        for (const id of keysetCheck.swapInKSIDs??[]) {
+            const unallowedSwapInKs = allKeysets.find(ks=> ks.hash === id && !ks.allowSwapIn)            
+            if (unallowedSwapInKs) {
+                throw new MintError(101, 'Swap in is disabled for keyset: '+ id);
+            }
+        }
+    }
+    private async checkMintSettings(amount: number) {
+        const allSettings = await getAll(settingsTable) as Setting[]
+        if (allSettings.find(s=>s.key==='minting-disabled')?.value==='true'?true:false) {
+            throw new MintError(101, 'Minting is currently disabled');
+        }
+        const maxMintAmt = parseInt(allSettings.find(s=>s.key==='mint-max-amt')?.value??'0')
+        if (maxMintAmt && maxMintAmt<amount) {
+            throw new MintError(101, `Mint amount exceeds max allowed amount: tried = ${amount} , allowed = ${maxMintAmt}`);
+        }
+        const minMintAmt = parseInt(allSettings.find(s=>s.key==='mint-min-amt')?.value??'0')
+        if (minMintAmt && minMintAmt>amount) {
+            throw new MintError(101, `Mint amount is lower than min allowed amount: tried = ${amount} , allowed = ${minMintAmt}`);
+        }
+    }    
+    private async checkMeltSettings(amount: number) {
+        const allSettings = await getAll(settingsTable) as Setting[]
+        if (allSettings.find(s=>s.key==='melting-disabled')?.value==='true'?true:false) {
+            throw new MintError(101, 'Melting is currently disabled');
+        }
+        const maxMeltAmt = parseInt(allSettings.find(s=>s.key==='melt-max-amt')?.value??'0')
+        if (maxMeltAmt && maxMeltAmt<amount) {
+            throw new MintError(101, `Melt amount exceeds max allowed amount: tried = ${amount} , allowed = ${maxMeltAmt}`);
+        }
+        const minMintAmt = parseInt(allSettings.find(s=>s.key==='melt-min-amt')?.value??'0')
+        if (minMintAmt && minMintAmt>amount) {
+            throw new MintError(101, `Melt amount is lower than min allowed amount: tried = ${amount} , allowed = ${minMintAmt}`);
+        }
+    }    
+}
+
+
+
+type KeysetSettingsCheck = {
+    meltKSIDs?:string[]
+    mintKSIDs?:string[]
+    swapOutKSIDs?:string[]
+    swapInKSIDs?:string[]
 }

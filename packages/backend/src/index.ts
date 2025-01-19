@@ -39,21 +39,36 @@ const app = new Elysia()
                         methods: [{
                             method: 'bolt11',
                             unit: 'sat',
-                            min_amount: 0,
-                            max_amount: 0
+                            min_amount: parseInt(settings.find(s => s.key === 'mint-min-amt')?.value??"0"),
+                            max_amount: parseInt(settings.find(s => s.key === 'mint-max-amt')?.value??"0")
                         }],
-                        disabled: false
+                        disabled: (settings.find(s => s.key === 'minting-disabled')?.value ?? 'false')==='true'?true:false,
                     },
                     "5":
                     {
                         methods: [{
                             method: 'bolt11',
                             unit: 'sat',
-                            min_amount: 0,
-                            max_amount: 0
+                            min_amount: parseInt(settings.find(s => s.key === 'melt-min-amt')?.value??"0"),
+                            max_amount: parseInt(settings.find(s => s.key === 'melt-max-amt')?.value??"0")
                         }],
-                        disabled: false
+                        disabled: (settings.find(s => s.key === 'melting-disabled')?.value ?? 'false')==='true'?true:false,
                     },
+                    "7": {
+                        supported: true
+                    }
+                    ,
+                    "8": {
+                        supported: true
+                    }
+                    ,
+                    "9": {
+                        supported: true
+                    }
+                    ,
+                    "12": {
+                        supported: true
+                    }
                 }
             }
             return info

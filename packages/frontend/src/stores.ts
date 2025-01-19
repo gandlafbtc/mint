@@ -55,7 +55,7 @@ const createUserLoggedInStore = () => {
             throw new Error(data.message);
         }
         userLoggedIn.set(data.data.user)
-		await init()
+        await init()
         socket = new WebSocket(PUBLIC_MINT_WS, [data.data.user.access_token])
         return data
     }
@@ -79,7 +79,7 @@ const createUserLoggedInStore = () => {
             throw new Error(data.message);
         }
         userLoggedIn.set(data.data.user)
-		await init()
+        await init()
         socket = new WebSocket(PUBLIC_MINT_WS, [data.data.user.access_token])
         return data
     }
@@ -118,7 +118,7 @@ const createSettingsStore = () => {
             throw new Error("Could not load settings");
         }
     }
-    
+
     const connectBackend = async (payload: ConnectPayload) => {
         const response = await fetch(`${PUBLIC_MINT_API}/admin/connectBackend`, {
             method: "POST",
@@ -168,7 +168,7 @@ const createSettingsStore = () => {
         }
     }
 
-    
+
     return { ...store, load, connectBackend, updateSettings, createKeys }
 }
 
@@ -198,6 +198,19 @@ const createKeysetsStore = () => {
         });
         return await setFromResponse(response)
     }
+    const updateKeyset = async (keyset: Keyset) => {
+        if (!socket) {
+            toast.info('Could not update: No connection.')
+            return
+        }
+        const command = {
+            command: 'update-keyset',
+            data: {
+                keyset
+            }
+        }
+        socket.send(JSON.stringify(command))
+    }
     const load = async () => {
         const response = await fetch(`${PUBLIC_MINT_API}/admin/keysets`, {
             headers: {
@@ -211,7 +224,7 @@ const createKeysetsStore = () => {
             throw new Error("Could not load keysets");
         }
     }
-    return { ...store, load, createKeyset }
+    return { ...store, load, createKeyset, updateKeyset }
 }
 
 export const keysets = createKeysetsStore()
@@ -219,11 +232,12 @@ export const keysets = createKeysetsStore()
 
 const createDashboardDataStore = () => {
     const store = writable<{
-        promisesCount: {id: string, count: number}[],
-        proofsCount: {id: string, count: number}[],
-        totalProofs: {id: string, sum: string}[],
-        totalPromises: {id: string, sum: string}[]
+        promisesCount: { id: string, count: number }[],
+        proofsCount: { id: string, count: number }[],
+        totalProofs: { id: string, sum: string }[],
+        totalPromises: { id: string, sum: string }[]
     }>()
+
     const setFromResponse = async (response: Response) => {
         const data = await response.json()
         if (response.status !== 200) {
@@ -232,7 +246,7 @@ const createDashboardDataStore = () => {
         store.set(data.data)
         return data.data
     }
-    
+
     const load = async () => {
         const response = await fetch(`${PUBLIC_MINT_API}/admin/dashboard-data`, {
             headers: {
@@ -262,7 +276,7 @@ const createProofsStore = () => {
         store.set(data.data.proofs)
         return data.data
     }
-    
+
     const load = async () => {
         const response = await fetch(`${PUBLIC_MINT_API}/admin/proofs`, {
             headers: {
@@ -292,7 +306,7 @@ const createPromisesStore = () => {
         store.set(data.data.messages)
         return data.data
     }
-    
+
     const load = async () => {
         const response = await fetch(`${PUBLIC_MINT_API}/admin/promises`, {
             headers: {
@@ -323,7 +337,7 @@ export const pingStore = createPingStore()
 
 
 
-const handleSocketCommand = (data: {command: string, data: any}) => {
+const handleSocketCommand = (data: { command: string, data: any }) => {
     if (!data.command || data.command === 'ping') {
         const pingData = data.data as PingData
         pingStore.set(pingData)
@@ -335,43 +349,58 @@ const handleSocketCommand = (data: {command: string, data: any}) => {
             if (!messages.length) {
                 return
             }
-            promisesStore.update(ctx=> [...ctx, ...messages])
-            dashboardData.update(ctx=> {
+            promisesStore.update(ctx => [...ctx, ...messages])
+            dashboardData.update(ctx => {
                 for (const message of messages) {
-                    const count = ctx.promisesCount.find(c=> c.id===message.id)
+                    const count = ctx.promisesCount.find(c => c.id === message.id)
                     if (!count) {
                         continue
                     }
                     count.count++
-                    const sum = ctx.totalPromises.find(c=> c.id===message.id)
+                    const sum = ctx.totalPromises.find(c => c.id === message.id)
                     if (!sum) {
                         continue
                     }
                     sum.sum = (parseInt(sum.sum) + message.amount) + ''
                 }
-                return ctx 
+                return ctx
             })
+            break;
+        case 'updated-keyset':
+            const keyset = data.data.keyset as Keyset
+            if (!keyset) {
+                return
+            }
+            keysets.update(ctx => {
+                const clone = [...ctx]
+                const index = clone.findIndex(ks => ks.hash === keyset.hash);
+                if (index!==undefined) {
+                    clone.splice(index, 1, keyset);
+                }
+                return clone
+            })
+            toast.info('Keyset updated')
             break;
         case 'inserted-proofs':
             const proofs = data.data.proofs as Proof[]
             if (!proofs.length) {
                 return
             }
-            proofsStore.update(ctx=> [...ctx, ...proofs])
-            dashboardData.update(ctx=> {
+            proofsStore.update(ctx => [...ctx, ...proofs])
+            dashboardData.update(ctx => {
                 for (const proof of proofs) {
-                    const count = ctx.proofsCount.find(c=> c.id===proof.id)
+                    const count = ctx.proofsCount.find(c => c.id === proof.id)
                     if (!count) {
                         continue
                     }
                     count.count++
-                    const sum = ctx.totalProofs.find(c=> c.id===proof.id)
+                    const sum = ctx.totalProofs.find(c => c.id === proof.id)
                     if (!sum) {
                         continue
                     }
                     sum.sum = (parseInt(sum.sum) + proof.amount) + ''
                 }
-                return ctx 
+                return ctx
             })
             break;
         default:
@@ -388,14 +417,14 @@ const handleSocketMessage = (message: MessageEvent) => {
     try {
         data = JSON.parse(dataStr)
     } catch (error) {
-        console.error('could not parse JSON: ' , dataStr)
+        console.error('could not parse JSON: ', dataStr)
     }
     handleSocketCommand(data)
 }
+let wsInterval: Timer | undefined = undefined
 
 const reconnectWebSocket = () => {
-    if (!browser)
-    {
+    if (!browser) {
         return
     }
     setTimeout(() => { reconnectWebSocket() }, 5000)
@@ -406,12 +435,17 @@ const reconnectWebSocket = () => {
     if (socket === undefined || socket.readyState === WebSocket.CLOSED) {
         socket = new WebSocket(PUBLIC_MINT_WS, [user.access_token])
         socket.onopen = () => {
-            socket?.send('pong') // send some text to server
-          };
-          socket.onmessage = (message) => {
+            if (wsInterval) {
+                clearInterval(wsInterval)
+            }
+            wsInterval = setInterval(() => {
+                socket?.send(JSON.stringify({ command: 'pong', data: {} })) // send some text to server
+            }, 5000);
+        };
+        socket.onmessage = (message) => {
             // here we got something sent from the server
             handleSocketMessage(message)
-          };
+        };
         console.log('connect to ws')
     }
 }

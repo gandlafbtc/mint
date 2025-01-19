@@ -14,9 +14,7 @@
 		<div class="bg-secondary flex h-52 flex-col rounded-lg p-2">
 			<div class="flex items-center justify-between gap-2">
 				<p class="font-bold">Keysets</p>
-				<Button onclick={() => keysets.createKeyset({})}>
-					<Plus></Plus>
-				</Button>
+
 			</div>
 			{#if $keysets}
 				<!-- {JSON.stringify($keysets)} -->
@@ -91,7 +89,7 @@
 									minimumFractionDigits: 0
 								}}
 								value={promisesCount - proofsCount}
-							></NumberFlow> ({Math.floor((proofsCount / promisesCount) * 100)} %) Unredeemed
+							></NumberFlow> ({Math.floor(((promisesCount - proofsCount) / promisesCount) * 100)} %) Unredeemed
 						</p>
 						<ProgressSuccess class="bg-sky-500" value={(proofsCount / promisesCount) * 100} />
 						<p class="text-sky-500">
@@ -102,7 +100,7 @@
 									minimumFractionDigits: 0
 								}}
 								value={totalPromises - totalProofs}
-							></NumberFlow> sat ({Math.floor((totalProofs / totalPromises) * 100)} %) Unredeemed
+							></NumberFlow> sat ({Math.floor(((totalPromises -totalProofs) / totalPromises) * 100)} %) Unredeemed
 						</p>
 						<ProgressSuccess class="bg-sky-500" value={(totalProofs / totalPromises) * 100} />
 					</div>
