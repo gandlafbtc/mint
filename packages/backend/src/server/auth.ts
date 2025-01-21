@@ -20,6 +20,10 @@ import { getLNDSettings, LND } from "../instances/lnd";
 import type { ElysiaWS } from "elysia/ws";
 import { updateKeyset } from "../persistence/keysets";
 import type { Keyset } from "@mnt/common/db/types";
+import { connectLND } from "../backend/connect/connectLND";
+import { connectNWC } from "../backend/connect/connectNWC";
+import { connectBackend } from "../backend/connect/connect";
+import { NWCImpl } from "../backend/NWCImpl";
 
 export const auth = (app: Elysia) =>
     app
@@ -299,31 +303,40 @@ export const auth = (app: Elysia) =>
         })
         .post("/connectBackend", async ({ user, message, body, set }) => {
             try {
-                const { macaroonHex, rpcHost, tlsCertHex, type } = body as {
+                const { macaroonHex, rpcHost, tlsCertHex, type, nwcString } = body as {
                     type: string
-                    rpcHost: string,
-                    macaroonHex: string,
-                    tlsCertHex: string
+                    rpcHost?: string,
+                    macaroonHex?: string,
+                    tlsCertHex?: string
+                    nwcString?: string
                 };
-                const { isValid, state, detail } = await testBackendConnection(rpcHost, macaroonHex, tlsCertHex)
-                if (!isValid) {
-                    set.status = 500
-                    set
-                    return {
-                        success: false,
-                        message: 'Could not update backend connection',
-                        data: {
-                            detail,
-                            state
-                        },
-                    };
+                if (type === 'LND') {
+                    if (!macaroonHex || !rpcHost || !tlsCertHex) {
+                        set.status = 500
+                        return {
+                            success: false,
+                            message: 'Missing parameters',
+                            data: {
+                            },
+                        };
+                    }
+                    await connectLND(rpcHost, macaroonHex, tlsCertHex)
                 }
-                await upsertSettings([
-                    { key: 'backend-type', value: type, version: SETTINGS_VERSION },
-                    { key: 'backend-rpc-host', value: rpcHost, version: SETTINGS_VERSION },
-                    { key: 'backend-macaroon', value: macaroonHex, version: SETTINGS_VERSION },
-                    { key: 'backend-tls-cert', value: tlsCertHex, version: SETTINGS_VERSION },
-                ])
+
+                else if (type === 'NWC') {
+                    if (!nwcString) {
+                        set.status = 500
+                        return {
+                            success: false,
+                            message: 'Missing parameters',
+                            data: {
+                            },
+                        };
+                    }
+                    await connectNWC(nwcString)
+                }
+
+                
                 const settings = await getAll(settingsTable)
                 return {
                     success: true,
@@ -431,7 +444,7 @@ export const auth = (app: Elysia) =>
                 sendPing(ws)
                 setInterval(async () => {
                     sendPing(ws)
-                }, 5000)
+                }, 10000)
                 eventEmitter.on('socket-event', (e: SocketEventData) => {
                     ws.send(e)
                 })
@@ -447,22 +460,46 @@ export const auth = (app: Elysia) =>
         })
 
 const sendPing = async (ws: ElysiaWS) => {
-    const { cert, macaroon, socket } = await getLNDSettings()
-    const { isValid, detail, state } = await testBackendConnection(socket, macaroon, cert)
-    const pingData: PingData = {
-        backendConnection: {
-            isConnected: isValid,
-            detail: detail
+    try {
+        const lightning = mint.getLightningInterface()
+        if (!lightning) {
+            await connectBackend()
         }
+        if (!lightning) {
+            throw new Error("No backend configured");
+        }
+        if (lightning instanceof NWCImpl) {
+            ws.send({ command: 'ping', data: {isConnected: true, backend: 'NWC'} })
+            return
+        }
+        const {detail, isConnected} = await lightning.testConnection()
+        const pingData: PingData = {
+            backendConnection: {
+                isConnected,
+                detail: detail
+            }
+        }
+        if (isConnected) {
+            const { lnBalance, simpleBalance, walletBalance } = await lightning.getBalance()
+            if (lnBalance) {
+                pingData.backendConnection.lnBalance = { outbound: parseInt(lnBalance.localBalance?.sat ?? '0'), inbound: parseInt(lnBalance.remoteBalance?.sat ?? '0') }
+            }
+            if (walletBalance) {
+                pingData.backendConnection.onchainBalance = { confirmed: parseInt(walletBalance.confirmedBalance ?? '0'), confirming: parseInt(walletBalance.unconfirmedBalance ?? '0') }
+            }
+            if (simpleBalance) {
+                pingData.backendConnection.simpleBalance = simpleBalance
+            }
+        }
+        ws.send({ command: 'ping', data: pingData })
+    } catch (error) {
+        const err = ensureError(error)
+        ws.send({ command: 'ping', data: {
+            isConnected: false,
+            detail: err.message
+        } })
     }
-    if (isValid) {
-        const lnd = await LND.getInstance()
-        const lnBalance = await lnd.lightning.channelBalance()
-        const walletBalance = await lnd.lightning.walletBalance()
-        pingData.backendConnection.lnBalance = { outbound: parseInt(lnBalance.localBalance?.sat ?? '0'), inbound: parseInt(lnBalance.remoteBalance?.sat ?? '0') }
-        pingData.backendConnection.onchainBalance = { confirmed: parseInt(walletBalance.confirmedBalance ?? '0'), confirming: parseInt(walletBalance.unconfirmedBalance ?? '0') }
-    }
-    ws.send({ command: 'ping', data: pingData })
+   
 }
 const handleCommand = async (message: { command: string, data: unknown }) => {
     console.log(message.command, Date.now())

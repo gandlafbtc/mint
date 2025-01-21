@@ -12,8 +12,8 @@ export class LND {
     public static async getInstance(): Promise<LndRpcApis> {
         if (!LND.instance) {
             const {socket , macaroon, cert} = await getLNDSettings()
-            const { isValid } = await testBackendConnection(socket, macaroon, cert)
-            if (!isValid) {
+            const { isConnected } = await testBackendConnection(socket, macaroon, cert)
+            if (!isConnected) {
                 throw new Error("Could not create LND instance");
             }
             LND.instance = LndClient.create({cert, macaroon, socket})

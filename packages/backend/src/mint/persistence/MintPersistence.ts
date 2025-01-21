@@ -50,7 +50,7 @@ export class MintPersistenceImpl {
         }).then(() => {
             return allKeysets
         }).catch((e) => {
-            throw new Error("Transaction error");
+            throw new Error("Transaction error", {cause: e});
         })
     }
     async getKeysets(): Promise<SerializedKeyset[]> {

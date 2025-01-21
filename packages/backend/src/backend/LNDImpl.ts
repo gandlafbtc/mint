@@ -1,18 +1,43 @@
-import type { InvoicePartial, Payment, PayReqStringPartial } from "@lightningpolar/lnd-api";
+import type { ChannelBalanceResponse, InvoicePartial, Payment, PayReqStringPartial, WalletBalanceResponse } from "@lightningpolar/lnd-api";
 import type { Lightning } from "../mint/interface/Lightning";
 import { LND } from "../instances/lnd";
 import { hexToBytes } from "@noble/hashes/utils";
 import { settings } from "../mint/business/Settings";
+import { randomHexString } from "../mint/util/util";
+import { ensureError } from "../errors";
 
 export class LNDBackend implements Lightning {
-  async getNewInvoice(amount: number): Promise<InvoicePartial> {
+
+  async testConnection(): Promise<{ state: string, detail: string, isConnected: boolean }> {
     const lnd = await LND.getInstance()
-    return await lnd.lightning.addInvoice({
+    try {
+      const { balance } = await lnd.lightning.channelBalance()
+      return { state: 'CONNECTION_OK', isConnected: balance===undefined?false:true, detail: 'CONNECTION_OK' }
+    } catch (error) {
+      console.error(error)
+      const err = ensureError(error)
+      return { isConnected: false, detail: err.message, state: 'NO_CONNECTION' }
+    }
+  }
+
+  async getBalance(): Promise<{ lnBalance: ChannelBalanceResponse, walletBalance: WalletBalanceResponse }> {
+    const lnd = await LND.getInstance()
+    const lnBalance = await lnd.lightning.channelBalance()
+    const walletBalance = await lnd.lightning.walletBalance()
+    return {
+      lnBalance,
+      walletBalance
+    }
+  }
+  async getNewInvoice(amount: number): Promise<{ paymentRequest: string, rHash: string | Buffer | Uint8Array }> {
+    const lnd = await LND.getInstance()
+    const invoice = await lnd.lightning.addInvoice({
       value: amount,
       expiry: settings.quoteExpiry,
     })
+    return { paymentRequest: invoice.paymentRequest, rHash: invoice.rHash }
   }
-  async getInvoice(hash: string): Promise<InvoicePartial> {
+  async getInvoice(hash: string): Promise<{ paymentRequest: string, state: string }> {
     const lnd = await LND.getInstance()
     const hashUint = hexToBytes(hash)
     return await lnd.invoices.lookupInvoiceV2({ paymentHash: hashUint })

@@ -19,13 +19,22 @@ import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core';
 import { getAll } from '../../persistence/generic';
 import { keysetsTable, settingsTable } from '@mnt/common/db';
 import { type Keyset as DBKeyset } from '@mnt/common/db/types';
+import { connect } from 'bun';
+import { connectBackend } from '../../backend/connect/connect';
 
 export class CashuMint {
 
-    private lightningInterface: Lightning
+    private lightningInterface: Lightning | undefined
 
-    constructor(lightningInterface: Lightning) {
-        this.lightningInterface = lightningInterface
+    getLightningInterface() {
+        return this.lightningInterface
+    }
+
+    setLightningInterface(lightningInterface: Lightning) {
+       this.lightningInterface = lightningInterface
+    }
+    constructor() {
+
     }
 
     async createKeysFromSeed(menmonicOrseed?: string | Uint8Array): Promise<{ pubKey: Uint8Array, privKey: Uint8Array }> {
@@ -111,7 +120,12 @@ export class CashuMint {
     }
 
     async mintQuote(amount: number, method: "bolt11", unit: "sat"): Promise<MintQuote> {
-        
+        if (!this.lightningInterface) {
+            await connectBackend()
+        }
+        if (!this.lightningInterface) {
+            throw new Error("No backend configured");
+        }
         await this.checkMintSettings(amount)
 
         const invoice = await this.lightningInterface.getNewInvoice(amount)
@@ -141,6 +155,12 @@ export class CashuMint {
     }
 
     async getMintQuote(quote: string): Promise<MintQuote> {
+        if (!this.lightningInterface) {
+            await connectBackend()
+        }
+        if (!this.lightningInterface) {
+            throw new Error("No backend configured");
+        }
         const mintQuote = await persistence.getMintQuote(quote)
         if (!mintQuote) {
             throw new MintError(120, 'No mint quote found with id:' + quote)
@@ -214,6 +234,12 @@ export class CashuMint {
     }
 
     async meltQuote(request: string, unit = "sat"): Promise<MeltQuote> {
+        if (!this.lightningInterface) {
+            await connectBackend()
+        }
+        if (!this.lightningInterface) {
+            throw new Error("No backend configured");
+        }
         const { fee } = await this.lightningInterface.estimateFee(request)
         const { amount } = await this.lightningInterface.getInvoiceAmount(request)
         await this.checkMeltSettings(amount)
@@ -231,7 +257,12 @@ export class CashuMint {
     }
 
     async melt(quote: string, inputs: SerializedProof[], outputs?: SerializedBlindedMessage[]): Promise<MeltQuoteResponse> {
-        
+        if (!this.lightningInterface) {
+            await connectBackend()
+        }
+        if (!this.lightningInterface) {
+            throw new Error("No backend configured");
+        }
         const meltQuote = await persistence.getMeltQuote(quote)
         await this.checkMeltSettings(meltQuote.amount)
 
@@ -252,19 +283,19 @@ export class CashuMint {
             throw new MintError(111, 'melt failed amounts do not match: fee_reserve + amount != sum(inputs)');
         }
         const enc: TextEncoder = new TextEncoder()
+        await persistence.insertProofs(inputs.map(p => {
+            return {
+                ...p, status: CheckStateEnum.PENDING,
+                Y: hashToCurve(enc.encode(p.secret)).toHex(true)
+            }
+        }))
 
         const { preimage, fee } = await this.lightningInterface.payInvoice(meltQuote.request, meltQuote.fee_reserve * 1000)
         let insertedMessages: BlindedMessage[] | undefined = undefined
         if (preimage) {
             let updatedQuoteResponse: MeltQuoteResponse | undefined = undefined
             await db.transaction(async (tx)=> {
-    
-            await persistence.insertProofs(inputs.map(p => {
-                return {
-                    ...p, status: CheckStateEnum.PENDING,
-                    Y: hashToCurve(enc.encode(p.secret)).toHex(true)
-                }
-            }), tx)
+     
             const feeDiff = meltQuote.fee_reserve - fee
             if (outputs?.length) {
                 const keys = await this.getKeys(outputs[0].id)
