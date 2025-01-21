@@ -57,7 +57,7 @@
 	</Button>
 	{#if $dashboardData && $keysets}
 		<div class="flex flex-col gap-2">
-			{#each $keysets as ks, i}
+			{#each $keysets as ks}
 				{@const proofsCount = $dashboardData.proofsCount.find((c) => c.id === ks.hash)?.count ?? 0}
 				{@const totalProofs = parseInt(
 					$dashboardData.totalProofs.find((c) => c.id === ks.hash)?.sum ?? '0'

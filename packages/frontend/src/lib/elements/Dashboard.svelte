@@ -56,9 +56,9 @@
 				(prev, curr) => parseInt(curr.sum) + prev,
 				0
 			)}
-			{@const lnBalance = $pingStore?.backendConnection.lnBalance?.outbound ?? 0}
-			{@const lnInbound = $pingStore?.backendConnection.lnBalance?.inbound ?? 0}
-			{@const onChain = $pingStore?.backendConnection.onchainBalance?.confirmed ?? 0}
+			{@const lnBalance = $pingStore?.backendConnection?.lnBalance?.outbound ?? 0}
+			{@const lnInbound = $pingStore?.backendConnection?.lnBalance?.inbound ?? 0}
+			{@const onChain = $pingStore?.backendConnection?.onchainBalance?.confirmed ?? 0}
 			<div class="bg-secondary flex h-52 w-full flex-col justify-between rounded-lg p-2">
 				<div class="flex items-center justify-between gap-2">
 					<p class="font-bold">Promises and Proofs</p>

@@ -16,12 +16,14 @@
 	let backendHost = $state(backendSettings?.rpcHost??'');
 	let backendCert = $state(backendSettings?.tlsCertHex??'');
 	let backendMacaroon = $state(backendSettings?.macaroonHex??'');
+	let nwcString = $state(backendSettings?.nwcString??'');
 	let isLoading = $state(false);
 	const connectBackend = async () => {
 		try {
 			isLoading = true;
 			const res = await settings.connectBackend({
 				macaroonHex: backendMacaroon,
+				nwcString: nwcString,
 				rpcHost: backendHost,
 				tlsCertHex: backendCert,
 				type: backendType
@@ -53,6 +55,7 @@
 			<BackendTypeSelector bind:backendType></BackendTypeSelector>
 		</div>
 
+		{#if backendType === 'LND'}
 		<div class="flex w-full flex-col gap-2">
 			<p>RPC Host</p>
 			<Input disabled={isLoading} required class="w-full" placeholder="127.0.0.1:10001" bind:value={backendHost} />
@@ -67,6 +70,16 @@
 			<p>Admin macaroon (hex)</p>
 			<Input disabled={isLoading} required class="w-full" placeholder="0201036c6e...." bind:value={backendMacaroon} />
 		</div>
+		{:else if backendType === 'NWC'}
+		<div class="flex w-full flex-col gap-2">
+			<p>Connection string (URL)</p>
+			<Input disabled={isLoading} required class="w-full" placeholder="nostr+walletconnect://....." bind:value={nwcString} />
+		</div>
+		{:else}
+		  ...
+		{/if}
+
+		
 
 		<FormButton disabled={isLoading} type="submit" class="w-full">
         {#if isLoading}

@@ -132,7 +132,7 @@ const createSettingsStore = () => {
             return await setFromResponse(response)
         }
         else {
-            throw new Error("Could not load settings");
+            throw new Error("Could not connect backend");
         }
     }
     const updateSettings = async (payload: UpdatePayload) => {
@@ -148,7 +148,7 @@ const createSettingsStore = () => {
             return await setFromResponse(response)
         }
         else {
-            throw new Error("Could not load settings");
+            throw new Error("Could not update settings");
         }
     }
     const createKeys = async (seed?: string) => {
@@ -164,7 +164,7 @@ const createSettingsStore = () => {
             return await setFromResponse(response)
         }
         else {
-            throw new Error("Could not load settings");
+            throw new Error("Could not create keys");
         }
     }
 
@@ -352,14 +352,16 @@ const handleSocketCommand = (data: { command: string, data: any }) => {
             promisesStore.update(ctx => [...ctx, ...messages])
             dashboardData.update(ctx => {
                 for (const message of messages) {
-                    const count = ctx.promisesCount.find(c => c.id === message.id)
+                    let count = ctx.promisesCount.find(c => c.id === message.id)
                     if (!count) {
-                        continue
+                       count = {count: 0, id: message.id} 
+                       ctx.promisesCount.push(count)
                     }
                     count.count++
-                    const sum = ctx.totalPromises.find(c => c.id === message.id)
+                    let sum = ctx.totalPromises.find(c => c.id === message.id)
                     if (!sum) {
-                        continue
+                        sum = {sum: '0', id: message.id} 
+                        ctx.totalPromises.push(sum)
                     }
                     sum.sum = (parseInt(sum.sum) + message.amount) + ''
                 }
@@ -389,14 +391,16 @@ const handleSocketCommand = (data: { command: string, data: any }) => {
             proofsStore.update(ctx => [...ctx, ...proofs])
             dashboardData.update(ctx => {
                 for (const proof of proofs) {
-                    const count = ctx.proofsCount.find(c => c.id === proof.id)
+                    let count = ctx.proofsCount.find(c => c.id === proof.id)
                     if (!count) {
-                        continue
+                        count = {count: 0, id: proof.id} 
+                        ctx.proofsCount.push(count)
                     }
                     count.count++
-                    const sum = ctx.totalProofs.find(c => c.id === proof.id)
+                    let sum = ctx.totalProofs.find(c => c.id === proof.id)
                     if (!sum) {
-                        continue
+                        sum = {sum: '0', id: proof.id} 
+                        ctx.totalProofs.push(sum)
                     }
                     sum.sum = (parseInt(sum.sum) + proof.amount) + ''
                 }

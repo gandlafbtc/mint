@@ -11,6 +11,7 @@
 	import { ensureError } from '../../errors';
 	import { userLoggedIn } from '../../stores';
 	import { goto } from '$app/navigation';
+	import { LoaderCircle, LockKeyholeOpen } from 'lucide-svelte';
 
 
     let username = $state('')
@@ -35,7 +36,10 @@
 <div class="w-full h-screen items-center justify-center flex">
 
     <Card.Root class='w-80'>
-        <form onsubmit={login}>
+        <form onsubmit={(e)=>{
+            e.preventDefault()
+            login()
+            }}>
 
             <Card.Header>
                 <Card.Title>Login</Card.Title>
@@ -57,7 +61,14 @@
                 <a href="/signup" class="text-sm underline">
                     Sign up
                 </a>
-                <FormButton disabled={isLoading}>Login</FormButton>
+                <FormButton disabled={isLoading}>
+                    {#if isLoading}
+                      <LoaderCircle class='animate-spin'></LoaderCircle>
+                    {:else}
+                      <LockKeyholeOpen></LockKeyholeOpen>
+                    {/if}
+                    Login
+                </FormButton>
             </Card.Footer>
         </form>
     </Card.Root>

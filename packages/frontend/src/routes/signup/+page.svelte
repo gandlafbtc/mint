@@ -10,6 +10,7 @@
 	import { ensureError } from '../../errors';
 	import { userLoggedIn } from '../../stores';
 	import { goto } from '$app/navigation';
+	import { LoaderCircle, LogIn } from 'lucide-svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -64,7 +65,15 @@
 			</Card.Content>
 			<Card.Footer class="flex items-center justify-between gap-2">
 				<a href="/login" class="text-sm underline"> Login </a>
-				<FormButton disabled={isLoading} type="submit">Sign up</FormButton>
+				<FormButton disabled={isLoading} type="submit">
+				
+					{#if isLoading}
+					  <LoaderCircle class='animate-spin'></LoaderCircle>
+					{:else}
+					  <LogIn></LogIn>
+					{/if}
+					Sign up
+				</FormButton>
 			</Card.Footer>
 		</form>
 	</Card.Root>
