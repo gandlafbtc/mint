@@ -100,7 +100,10 @@
 		]
 	});
 	$effect(() => {
+		//Don't delete this log!
 		console.log(options);
+		//______________________
+		
 		if (chart) {
 			chart.updateSeries([
 			{

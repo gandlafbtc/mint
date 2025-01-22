@@ -5,6 +5,7 @@ import { hexToBytes } from "@noble/hashes/utils";
 import { settings } from "../mint/business/Settings";
 import { randomHexString } from "../mint/util/util";
 import { ensureError } from "../errors";
+import { log } from "../logger";
 
 export class LNDBackend implements Lightning {
 
@@ -72,19 +73,17 @@ export class LNDBackend implements Lightning {
       stream.on('data', (payment: Payment) => {
         switch (payment.status) {
           case 'IN_FLIGHT':
-            console.log('payInvoice payment in-flight');
+            log.info`${payment.paymentHash} payment in-flight`;
             break;
           case 'SUCCEEDED':
-            console.log('payInvoice payment completed');
+            log.info`${payment.paymentHash} payment successful`;
 
             resolve({ preimage: payment.paymentPreimage, fee: parseInt(payment.feeSat) });
             break;
           case 'FAILED':
           case 'UNKNOWN':
-            console.log(
-              `payInvoice payment failed: ${payment.failureReason}`,
-            );
-            reject(new Error(`Payment failed: ${payment.failureReason}`));
+            log.error`${payment.paymentHash} payment failed: ${payment.failureReason}`
+            reject(new Error(`${payment.paymentHash} Payment failed: ${payment.failureReason}`));
             break;
         }
       });

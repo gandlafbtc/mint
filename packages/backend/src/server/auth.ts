@@ -24,6 +24,7 @@ import { connectLND } from "../backend/connect/connectLND";
 import { connectNWC } from "../backend/connect/connectNWC";
 import { connectBackend } from "../backend/connect/connect";
 import { NWCImpl } from "../backend/NWCImpl";
+import { log } from "../logger";
 
 export const auth = (app: Elysia) =>
     app
@@ -88,7 +89,7 @@ export const auth = (app: Elysia) =>
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         success: false,
                         message: err.message,
@@ -158,7 +159,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -180,7 +181,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -209,7 +210,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -232,7 +233,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -255,7 +256,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -292,7 +293,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -348,7 +349,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -373,7 +374,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -398,7 +399,7 @@ export const auth = (app: Elysia) =>
             } catch (error) {
                 set.status = 400;
                 const err = ensureError(error)
-                console.error(err)
+                log.error('Error: {error}', {error})
                 return {
                     success: false,
                     message: err.message,
@@ -409,7 +410,9 @@ export const auth = (app: Elysia) =>
         }).ws('/ws', {
             beforeHandle: async ({ headers, request, set, jwt }) => {
                 const authHeader = headers['sec-websocket-protocol']
+                log.debug`Authorizing websocket connection...`
                 if (!authHeader) {
+                log.warn`Authorization token not set`
                     set.status = 401
                     return {
                         success: false,
@@ -419,6 +422,8 @@ export const auth = (app: Elysia) =>
                 }
                 const { userId } = await jwt.verify(authHeader);
                 if (!userId) {
+                log.warn`User param not found in token: ${authHeader}`
+
                     set.status = 401;
                     return {
                         success: false,
@@ -430,6 +435,7 @@ export const auth = (app: Elysia) =>
                 const user = await db.select().from(userTable).where(eq(userTable.id, userId)).then(takeUniqueOrUndefinded);
 
                 if (!user) {
+                log.warn`No such user: ${userId}`
                     set.status = 401;
                     return {
                         success: false,
@@ -437,6 +443,8 @@ export const auth = (app: Elysia) =>
                         data: null,
                     };
                 }
+              log.debug`Authorized websocket: ${userId}`
+
             },
 
             open: (ws) => {
@@ -446,6 +454,7 @@ export const auth = (app: Elysia) =>
                     sendPing(ws)
                 }, 10000)
                 eventEmitter.on('socket-event', (e: SocketEventData) => {
+                    log.debug(`Sending socket event {e}`, {e} )
                     ws.send(e)
                 })
             },
@@ -492,8 +501,10 @@ const sendPing = async (ws: ElysiaWS) => {
             }
         }
         ws.send({ command: 'ping', data: pingData })
+        // log.debug(`sent websocket ping {pingData}`, {pingData} )
     } catch (error) {
         const err = ensureError(error)
+        log.warn(`websocket Ping error {error}`, {error} )
         ws.send({ command: 'ping', data: {
             isConnected: false,
             detail: err.message
@@ -502,7 +513,7 @@ const sendPing = async (ws: ElysiaWS) => {
    
 }
 const handleCommand = async (message: { command: string, data: unknown }) => {
-    console.log(message.command, Date.now())
+    // log.debug(`Received websocket command: {message}`, {message} )
     switch (message.command) {
         case 'update-keyset':
             const data = message.data as {keyset: Keyset}
@@ -511,7 +522,7 @@ const handleCommand = async (message: { command: string, data: unknown }) => {
         case 'pong':
             break;
         default:
-            console.log('command not found')
+            log.warn("Unknown websocket command {message}", {message})
             break;
     }
 }

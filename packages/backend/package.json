@@ -2,6 +2,7 @@
   "name": "@mnt/backend",
   "module": "index.ts",
   "type": "module",
+  "version": "0.1.0",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts"
@@ -21,7 +22,9 @@
     "@elysiajs/jwt": "^1.2.0",
     "@elysiajs/swagger": "^1.2.0",
     "@getalby/sdk": "^3.9.0",
+    "@grotto/logysia": "^0.1.6",
     "@lightningpolar/lnd-api": "^0.18.4-beta.rc1",
+    "@logtape/logtape": "^0.8.0",
     "@node-rs/argon2": "^2.0.2",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
@@ -30,6 +33,7 @@
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.3",
     "elysia": "^1.2.6",
+    "elysia-rate-limit": "^4.1.0",
     "light-bolt11-decoder": "^3.2.0"
   }
 }

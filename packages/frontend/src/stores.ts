@@ -408,7 +408,6 @@ const handleSocketCommand = (data: { command: string, data: any }) => {
             })
             break;
         default:
-            console.log('unknown command: ', data.command);
     }
 }
 
@@ -450,7 +449,6 @@ const reconnectWebSocket = () => {
             // here we got something sent from the server
             handleSocketMessage(message)
         };
-        console.log('connect to ws')
     }
 }
 reconnectWebSocket()

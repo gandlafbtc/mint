@@ -12,14 +12,33 @@ import { getActiveKeys, getKeysetById } from './persistence/keysets'
 import { mint, persistence } from './instances/mint'
 import { ensureError } from './errors'
 import type { Keyset, Setting } from '@mnt/common/db/types'
+import { ansiColorFormatter, configure, getConsoleSink, getFileSink, getLogger } from "@logtape/logtape";
+import { version } from "../package.json";
+import { logger } from '@grotto/logysia'
+import { log } from './logger'
+import { rateLimit } from 'elysia-rate-limit'
+
+log.info`Starting MNT version ${version}...`
 
 const app = new Elysia()
-    .use(swagger({
+.use(logger({
+    logIP: false,
+    writer: {
+        write: (m: string)=> {
+            log.debug(m)
+        }
+    }
+}))
+.use(rateLimit({
+    duration: 30000,
+    max: 100
+}))
+.use(swagger({
         path: '/docs',
         documentation: {
             info: {
                 title: 'MNT Documentation',
-                version: '1.0.0'
+                version
             }
         }
     }))
@@ -30,7 +49,7 @@ const app = new Elysia()
                 contact: [],
                 name: settings.find(s => s.key === 'mint-name')?.value ?? '',
                 pubkey: settings.find(s => s.key === 'mint-pub-key')?.value ?? '',
-                version: 'MNT-v0.1',
+                version: 'MNT-v'+version,
                 motd: settings.find(s => s.key === 'mint-motd')?.value ?? '',
                 description: settings.find(s => s.key === 'mint-description')?.value ?? '',
                 description_long: settings.find(s => s.key === 'mint-description-long')?.value ?? '',
@@ -39,20 +58,20 @@ const app = new Elysia()
                         methods: [{
                             method: 'bolt11',
                             unit: 'sat',
-                            min_amount: parseInt(settings.find(s => s.key === 'mint-min-amt')?.value??"0"),
-                            max_amount: parseInt(settings.find(s => s.key === 'mint-max-amt')?.value??"0")
+                            min_amount: parseInt(settings.find(s => s.key === 'mint-min-amt')?.value ?? "0"),
+                            max_amount: parseInt(settings.find(s => s.key === 'mint-max-amt')?.value ?? "0")
                         }],
-                        disabled: (settings.find(s => s.key === 'minting-disabled')?.value ?? 'false')==='true'?true:false,
+                        disabled: (settings.find(s => s.key === 'minting-disabled')?.value ?? 'false') === 'true' ? true : false,
                     },
                     "5":
                     {
                         methods: [{
                             method: 'bolt11',
                             unit: 'sat',
-                            min_amount: parseInt(settings.find(s => s.key === 'melt-min-amt')?.value??"0"),
-                            max_amount: parseInt(settings.find(s => s.key === 'melt-max-amt')?.value??"0")
+                            min_amount: parseInt(settings.find(s => s.key === 'melt-min-amt')?.value ?? "0"),
+                            max_amount: parseInt(settings.find(s => s.key === 'melt-max-amt')?.value ?? "0")
                         }],
-                        disabled: (settings.find(s => s.key === 'melting-disabled')?.value ?? 'false')==='true'?true:false,
+                        disabled: (settings.find(s => s.key === 'melting-disabled')?.value ?? 'false') === 'true' ? true : false,
                     },
                     "7": {
                         supported: true
@@ -126,7 +145,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -144,7 +163,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -162,7 +181,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -179,7 +198,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -197,7 +216,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -212,7 +231,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -232,7 +251,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -267,7 +286,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    console.error(err)
+                    log.error('Error: {error}', {error})
                     return {
                         detail: err.message,
                         code: 1337
@@ -329,6 +348,4 @@ const app = new Elysia()
     )
     .listen(3000)
 
-console.log(
-    `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-)
+log.info`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`

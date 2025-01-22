@@ -21,6 +21,8 @@ import { keysetsTable, settingsTable } from '@mnt/common/db';
 import { type Keyset as DBKeyset } from '@mnt/common/db/types';
 import { connect } from 'bun';
 import { connectBackend } from '../../backend/connect/connect';
+import { log } from '../../logger';
+import { createTransaction } from '../../db/tx';
 
 export class CashuMint {
 
@@ -31,19 +33,22 @@ export class CashuMint {
     }
 
     setLightningInterface(lightningInterface: Lightning) {
-       this.lightningInterface = lightningInterface
+        this.lightningInterface = lightningInterface
     }
     constructor() {
 
     }
 
     async createKeysFromSeed(menmonicOrseed?: string | Uint8Array): Promise<{ pubKey: Uint8Array, privKey: Uint8Array }> {
+        log.debug`Create mint keys...`
         let privKey = undefined
         let pubKey = undefined
         if (!menmonicOrseed) {
+            log.debug`... with mnemnonic`
             privKey = schnorr.utils.randomPrivateKey();
         }
         else {
+            log.debug`... without mnemnonic`
             if (typeof menmonicOrseed === 'string') {
                 menmonicOrseed = await mnemonicToSeed(menmonicOrseed)
             }
@@ -57,6 +62,7 @@ export class CashuMint {
             }
         }
         pubKey = schnorr.getPublicKey(privKey)
+        log.debug`Created mint keys. Pubkey: ${pubKey}`
         const persisted = await persistence.insertSeedKeys({ privKey: bytesToHex(privKey), pubKey: bytesToHex(pubKey) })
         if (!persisted?.privKey) {
             throw new MintError(602, 'Could not persist keys from seed')
@@ -65,6 +71,7 @@ export class CashuMint {
     }
 
     async createKeysetPair() {
+        log.debug`Create new keypair`
         const mintKeys = createNewMintKeys(32)
         const persisted = await persistence.addKeyset(mintKeys)
         return persisted
@@ -79,23 +86,25 @@ export class CashuMint {
     }
 
     async swap(inputs: SerializedProof[], outputs: SerializedBlindedMessage[]): Promise<SerializedBlindSignature[]> {
-        
+        log.debug`Perform swap operation...`
         const checkKeysets: KeysetSettingsCheck = {
-            swapInKSIDs: [...new Set(outputs.map(o=> o.id))],
-            swapOutKSIDs: [...new Set(inputs.map(i=> i.id))],
-        } 
+            swapInKSIDs: [...new Set(outputs.map(o => o.id))],
+            swapOutKSIDs: [...new Set(inputs.map(i => i.id))],
+        }
         await this.checkKeysetSettings(checkKeysets)
-        
+
         await this.validateProofs(inputs)
-        
+
         await this.checkProofsSpent(inputs)
-        
+
         let signedOutputs: InsertBlindedMessage[] = []
 
         const isAmountMatch = inputs.reduce((prev, curr) => prev + curr.amount, 0) === outputs.reduce((prev, curr) => prev + curr.amount, 0)
+
         if (!isAmountMatch) {
             throw new MintError(110, 'input and output amount dont match');
         }
+
         const keys = await this.getKeys(outputs[0].id)
         signedOutputs = outputs.map((o) => {
             if (!keys.privKeys[o.amount]) {
@@ -103,20 +112,14 @@ export class CashuMint {
             }
             return { changeId: null, quoteId: null, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true) }
         })
-        
-        const enc = new TextEncoder()
-        await db.transaction(async (tx)=>{
-            await persistence.insertProofs(inputs.map(p => { return { ...p, status: CheckStateEnum.SPENT, Y: hashToCurve(enc.encode(p.secret)).toHex(true) } }), tx)
-            await persistence.insertMessages(signedOutputs, tx)
-        })
-    return signedOutputs.map(s => {
-        return {
-            C_: s.C_,
-            amount: s.amount,
-            id: s.id
-        }
-    })
 
+        const enc = new TextEncoder()
+            const tx = createTransaction(db)
+            return await tx.transaction(async ({db})=> {
+                await persistence.insertProofs(inputs.map(p => { return { ...p, status: CheckStateEnum.SPENT, Y: hashToCurve(enc.encode(p.secret)).toHex(true) } }, db))
+                const messages = await persistence.insertMessages(signedOutputs, db)
+                return messages.map(m=> {return {amount: m.amount, C_: m.C_, id: m.id}})
+            })
     }
 
     async mintQuote(amount: number, method: "bolt11", unit: "sat"): Promise<MintQuote> {
@@ -178,8 +181,8 @@ export class CashuMint {
         await this.checkMintSettings(mintQuote.amount)
 
         const checkKeysets: KeysetSettingsCheck = {
-            mintKSIDs: [...new Set(outputs.map(o=> o.id))],
-        } 
+            mintKSIDs: [...new Set(outputs.map(o => o.id))],
+        }
 
         await this.checkKeysetSettings(checkKeysets)
 
@@ -206,17 +209,19 @@ export class CashuMint {
             }
             return { changeId: null, quoteId: quote, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true) }
         })
-        await db.transaction(async (tx)=> {
-            await persistence.updateMintQuoteState(quote, MintQuoteState.ISSUED, tx)
-            await persistence.insertMessages(signedOutputs, tx)
+        const tx = createTransaction(db)
+        return await tx.transaction(async ({db})=> {
+            await persistence.updateMintQuoteState(quote, MintQuoteState.ISSUED, db)
+            await persistence.insertMessages(signedOutputs, db)
             //todo check against amount of issued signatures
-        })
-        return signedOutputs.map(s => {
-            return {
-                C_: s.C_,
-                amount: s.amount,
-                id: s.id
-            }
+            return signedOutputs.map(s => {
+                return {
+                    C_: s.C_,
+                    amount: s.amount,
+                    id: s.id
+                }
+            })
+
         })
     }
 
@@ -267,11 +272,10 @@ export class CashuMint {
         await this.checkMeltSettings(meltQuote.amount)
 
         const checkKeysets: KeysetSettingsCheck = {
-            meltKSIDs: [...new Set(inputs.map(i=> i.id))],
-        } 
+            meltKSIDs: [...new Set(inputs.map(i => i.id))],
+        }
 
         await this.checkKeysetSettings(checkKeysets)
-
         await this.validateProofs(inputs)
         await this.checkProofsSpent(inputs)
         if (!meltQuote) {
@@ -294,12 +298,12 @@ export class CashuMint {
         let insertedMessages: BlindedMessage[] | undefined = undefined
         if (preimage) {
             let updatedQuoteResponse: MeltQuoteResponse | undefined = undefined
-            await db.transaction(async (tx)=> {
-     
+
             const feeDiff = meltQuote.fee_reserve - fee
+            let signedOutputs: undefined | InsertBlindedMessage[] = undefined
             if (outputs?.length) {
                 const keys = await this.getKeys(outputs[0].id)
-                const keyAmounts = Object.keys(keys.pubKeys).map(k => parseInt(k)).sort((a: number, b: number) => b-a)
+                const keyAmounts = Object.keys(keys.pubKeys).map(k => parseInt(k)).sort((a: number, b: number) => b - a)
                 const diffAmounts = getAmountsForAmount(feeDiff, keyAmounts)
                 const outputsWithAmount: SerializedBlindedMessage[] = []
                 for (let i = 0; i < diffAmounts.length; i++) {
@@ -310,39 +314,37 @@ export class CashuMint {
                     })
                 }
 
-                const signedOutputs = outputsWithAmount.map((o) => {
+                signedOutputs = outputsWithAmount.map((o) => {
                     if (!keys.privKeys[o.amount]) {
                         throw new MintError(123, "Keyset does not have amount: " + o.amount)
                     }
                     return { changeId: quote, quoteId: null, unit: 'sat', amount: o.amount, id: o.id, B_: o.B_, C_: createBlindSignature(pointFromHex(o.B_), keys.privKeys[o.amount], o.amount, o.id).C_.toHex(true) }
                 })
-                insertedMessages = await persistence.insertMessages(signedOutputs, tx)
             }
-            await persistence.updateProofStatus(inputs.map(p => p.secret), CheckStateEnum.SPENT, tx)
-            const updatedQuote = await persistence.updateMeltQuoteState(quote, MeltQuoteState.PAID, tx)
-            updatedQuoteResponse = {
-                amount: updatedQuote.amount,
-                expiry: updatedQuote.expiry,
-                fee_reserve: updatedQuote.fee_reserve,
-                payment_preimage: updatedQuote.payment_preimage,
-                quote: updatedQuote.quote,
-                state: updatedQuote.state as MeltQuoteState,
-                change: insertedMessages?.map(m => { return { amount: m.amount, C_: m.C_, id: m.id } })
-            }
-            }) 
-            //todo create fee return sigs
-            if (!updatedQuoteResponse) {
-                throw new Error("Transaction error");            
-            }            
-
-            return updatedQuoteResponse
+            const tx = createTransaction(db)
+            return await tx.transaction(async ({db})=> {
+                if (signedOutputs) {
+                    insertedMessages = await persistence.insertMessages(signedOutputs)
+                }
+                await persistence.updateProofStatus(inputs.map(p => p.secret), CheckStateEnum.SPENT)
+                const updatedQuote = await persistence.updateMeltQuoteState(quote, MeltQuoteState.PAID)
+                updatedQuoteResponse = {
+                    amount: updatedQuote.amount,
+                    expiry: updatedQuote.expiry,
+                    fee_reserve: updatedQuote.fee_reserve,
+                    payment_preimage: updatedQuote.payment_preimage,
+                    quote: updatedQuote.quote,
+                    state: updatedQuote.state as MeltQuoteState,
+                    change: insertedMessages?.map(m => { return { amount: m.amount, C_: m.C_, id: m.id } })
+                }
+                return updatedQuoteResponse
+            })
+           
         }
         else {
             throw new Error("Melt failed: No preimage");
         }
     }
-
-
 
     async checkToken(Ys: string[]): Promise<{ Y: string, state: CheckStateEnum }[]> {
         const proofs = await persistence.getProofsByYs(Ys)
@@ -358,21 +360,22 @@ export class CashuMint {
         const sortedBMs: BlindedMessage[] = []
 
         for (const bm of restoreBms) {
-            const bmToSort = BMs.find(b=>b.B_ === bm.B_)
+            const bmToSort = BMs.find(b => b.B_ === bm.B_)
             if (bmToSort) {
                 sortedBMs.push(bmToSort)
             }
         }
 
         for (const bm of sortedBMs) {
-            outputs.push({ amount: bm.amount, B_: bm.B_, id:  bm.id})
-            signatures.push({ amount: bm.amount, C_: bm.C_, id:  bm.id})
-            promises.push({ amount: bm.amount, C_: bm.C_, id:  bm.id})
+            outputs.push({ amount: bm.amount, B_: bm.B_, id: bm.id })
+            signatures.push({ amount: bm.amount, C_: bm.C_, id: bm.id })
+            promises.push({ amount: bm.amount, C_: bm.C_, id: bm.id })
         }
         return { outputs, signatures, promises }
     }
 
     private async validateProofs(proofs: SerializedProof[]): Promise<void> {
+        log.debug`Validate proofs [${proofs.length}]`
         const keysets = await this.getKeysets()
         const keysetIds = keysets.map(ks => ks.id)
         const containsUnknownKeysetId = proofs.find(p => !keysetIds.includes(p.id))
@@ -390,6 +393,7 @@ export class CashuMint {
         }
     }
     private async checkProofsSpent(proofs: SerializedProof[]): Promise<void> {
+        log.debug`Check proofs spent [${proofs.length}]`
         const secrets = proofs.map(p => p.secret)
         const containsSpentSecret = await persistence.containsSpentSecret(secrets)
         if (containsSpentSecret) {
@@ -397,67 +401,69 @@ export class CashuMint {
         }
     }
     private async checkKeysetSettings(keysetCheck: KeysetSettingsCheck): Promise<void> {
+        log.debug('Checking keysets for operation: {keysetCheck}', { keysetCheck })
         const allKeysets = await getAll(keysetsTable) as DBKeyset[]
-        for (const id of keysetCheck.meltKSIDs??[]) {
-            const unallowedMeltKs = allKeysets.find(ks=> ks.hash === id && !ks.allowMelt)            
+        for (const id of keysetCheck.meltKSIDs ?? []) {
+            const unallowedMeltKs = allKeysets.find(ks => ks.hash === id && !ks.allowMelt)
             if (unallowedMeltKs) {
-                throw new MintError(101, 'Melt is disabled for keyset: '+ id);
+                throw new MintError(101, 'Melt is disabled for keyset: ' + id);
             }
         }
-        for (const id of keysetCheck.mintKSIDs??[]) {
-            const unallowedMintKs = allKeysets.find(ks=> ks.hash === id && !ks.allowMint)            
+        for (const id of keysetCheck.mintKSIDs ?? []) {
+            const unallowedMintKs = allKeysets.find(ks => ks.hash === id && !ks.allowMint)
             if (unallowedMintKs) {
-                throw new MintError(101, 'Minting is disabled for keyset: '+ id);
+                throw new MintError(101, 'Minting is disabled for keyset: ' + id);
             }
         }
-        for (const id of keysetCheck.swapOutKSIDs??[]) {
-            const unallowedSwapOutKs = allKeysets.find(ks=> ks.hash === id && !ks.allowSwapOut)            
+        for (const id of keysetCheck.swapOutKSIDs ?? []) {
+            const unallowedSwapOutKs = allKeysets.find(ks => ks.hash === id && !ks.allowSwapOut)
             if (unallowedSwapOutKs) {
-                throw new MintError(101, 'Swap out is disabled for keyset: '+ id);
+                throw new MintError(101, 'Swap out is disabled for keyset: ' + id);
             }
         }
-        for (const id of keysetCheck.swapInKSIDs??[]) {
-            const unallowedSwapInKs = allKeysets.find(ks=> ks.hash === id && !ks.allowSwapIn)            
+        for (const id of keysetCheck.swapInKSIDs ?? []) {
+            const unallowedSwapInKs = allKeysets.find(ks => ks.hash === id && !ks.allowSwapIn)
             if (unallowedSwapInKs) {
-                throw new MintError(101, 'Swap in is disabled for keyset: '+ id);
+                throw new MintError(101, 'Swap in is disabled for keyset: ' + id);
             }
         }
     }
     private async checkMintSettings(amount: number) {
+        log.debug('Checking mint settings for amount: {amount}', { amount })
         const allSettings = await getAll(settingsTable) as Setting[]
-        if (allSettings.find(s=>s.key==='minting-disabled')?.value==='true'?true:false) {
+        if (allSettings.find(s => s.key === 'minting-disabled')?.value === 'true' ? true : false) {
             throw new MintError(101, 'Minting is currently disabled');
         }
-        const maxMintAmt = parseInt(allSettings.find(s=>s.key==='mint-max-amt')?.value??'0')
-        if (maxMintAmt && maxMintAmt<amount) {
+        const maxMintAmt = parseInt(allSettings.find(s => s.key === 'mint-max-amt')?.value ?? '0')
+        if (maxMintAmt && maxMintAmt < amount) {
             throw new MintError(101, `Mint amount exceeds max allowed amount: tried = ${amount} , allowed = ${maxMintAmt}`);
         }
-        const minMintAmt = parseInt(allSettings.find(s=>s.key==='mint-min-amt')?.value??'0')
-        if (minMintAmt && minMintAmt>amount) {
+        const minMintAmt = parseInt(allSettings.find(s => s.key === 'mint-min-amt')?.value ?? '0')
+        if (minMintAmt && minMintAmt > amount) {
             throw new MintError(101, `Mint amount is lower than min allowed amount: tried = ${amount} , allowed = ${minMintAmt}`);
         }
-    }    
+    }
     private async checkMeltSettings(amount: number) {
         const allSettings = await getAll(settingsTable) as Setting[]
-        if (allSettings.find(s=>s.key==='melting-disabled')?.value==='true'?true:false) {
+        if (allSettings.find(s => s.key === 'melting-disabled')?.value === 'true' ? true : false) {
             throw new MintError(101, 'Melting is currently disabled');
         }
-        const maxMeltAmt = parseInt(allSettings.find(s=>s.key==='melt-max-amt')?.value??'0')
-        if (maxMeltAmt && maxMeltAmt<amount) {
+        const maxMeltAmt = parseInt(allSettings.find(s => s.key === 'melt-max-amt')?.value ?? '0')
+        if (maxMeltAmt && maxMeltAmt < amount) {
             throw new MintError(101, `Melt amount exceeds max allowed amount: tried = ${amount} , allowed = ${maxMeltAmt}`);
         }
-        const minMintAmt = parseInt(allSettings.find(s=>s.key==='melt-min-amt')?.value??'0')
-        if (minMintAmt && minMintAmt>amount) {
+        const minMintAmt = parseInt(allSettings.find(s => s.key === 'melt-min-amt')?.value ?? '0')
+        if (minMintAmt && minMintAmt > amount) {
             throw new MintError(101, `Melt amount is lower than min allowed amount: tried = ${amount} , allowed = ${minMintAmt}`);
         }
-    }    
+    }
 }
 
 
 
 type KeysetSettingsCheck = {
-    meltKSIDs?:string[]
-    mintKSIDs?:string[]
-    swapOutKSIDs?:string[]
-    swapInKSIDs?:string[]
+    meltKSIDs?: string[]
+    mintKSIDs?: string[]
+    swapOutKSIDs?: string[]
+    swapInKSIDs?: string[]
 }

@@ -1,0 +1,16 @@
+{
+  "name": "@mnt/tools",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "@cashu/cashu-ts": "^2.2.0-rc4",
+    "@logtape/logtape": "^0.8.0",
+    "dotenv": "^16.4.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

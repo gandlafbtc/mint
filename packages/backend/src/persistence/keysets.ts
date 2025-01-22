@@ -123,7 +123,6 @@ export const getKeysetById = async (id: string): Promise<MintKeys[]> => {
 
 export const updateKeyset = async (keyset: Keyset) => {
     const values = await db.update(keysetsTable).set(keyset).where(eq(keysetsTable.hash, keyset.hash)).returning()
-    console.log(values)
     eventEmitter.emit('socket-event', { command: 'updated-keyset', data: { keyset: values[0] } })
     return values[0]
 }
