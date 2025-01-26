@@ -38,9 +38,18 @@ export class LNDBackend implements Lightning {
     })
     return { paymentRequest: invoice.paymentRequest, rHash: invoice.rHash }
   }
+  
   async getInvoice(hash: string): Promise<{ paymentRequest: string, state: string }> {
     const lnd = await LND.getInstance()
     const hashUint = hexToBytes(hash)
+    const invoice = await lnd.invoices.lookupInvoiceV2({ paymentHash: hashUint })
+    return invoice 
+  }
+    
+  async getInvoiceByInvoice(invoice: string): Promise<{ paymentRequest: string, state: string }> {
+    const lnd = await LND.getInstance()
+    const decoded = await lnd.lightning.decodePayReq(invoice as PayReqStringPartial)
+    const hashUint = hexToBytes(decoded.paymentHash)
     return await lnd.invoices.lookupInvoiceV2({ paymentHash: hashUint })
   }
   async estimateFee(request: string): Promise<{ fee: number }> {

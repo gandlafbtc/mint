@@ -1,8 +1,11 @@
-import { ansiColorFormatter, configure, getConsoleSink, getFileSink, getLogger } from "@logtape/logtape";
+import { ansiColorFormatter, configure, getConsoleSink, getLogger, getRotatingFileSink } from "@logtape/logtape";
 
 await configure({
     sinks: { console: getConsoleSink({formatter: ansiColorFormatter}),
-        file: getFileSink("app.log"),
+    file: getRotatingFileSink("app.log", {
+        maxSize: 0x400 * 0x400 * 5,
+        maxFiles: 5
+    }),
     },
     loggers: [
         { category: "mnt-tools", lowestLevel: "debug", sinks: ["console", "file"] },

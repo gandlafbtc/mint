@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "bun build --compile --minify --sourcemap ./src/index.ts --outfile dist/mnt",
     "dev": "bun run --watch src/index.ts"
   },
   "devDependencies": {
@@ -19,6 +20,7 @@
     "@cashu/cashu-ts": "^2.1.0",
     "@elysiajs/cookie": "^0.8.0",
     "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/cron": "^1.2.0",
     "@elysiajs/jwt": "^1.2.0",
     "@elysiajs/swagger": "^1.2.0",
     "@getalby/sdk": "^3.9.0",

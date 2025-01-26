@@ -262,13 +262,16 @@ export class CashuMint {
     }
 
     async melt(quote: string, inputs: SerializedProof[], outputs?: SerializedBlindedMessage[]): Promise<MeltQuoteResponse> {
+        const meltQuote = await persistence.getMeltQuote(quote)
+        if (meltQuote.state===MeltQuoteState.PAID) {
+            throw new Error("Quote has already been paid");
+        }
         if (!this.lightningInterface) {
             await connectBackend()
         }
         if (!this.lightningInterface) {
             throw new Error("No backend configured");
         }
-        const meltQuote = await persistence.getMeltQuote(quote)
         await this.checkMeltSettings(meltQuote.amount)
 
         const checkKeysets: KeysetSettingsCheck = {
@@ -290,7 +293,7 @@ export class CashuMint {
         await persistence.insertProofs(inputs.map(p => {
             return {
                 ...p, status: CheckStateEnum.PENDING,
-                Y: hashToCurve(enc.encode(p.secret)).toHex(true)
+                Y: hashToCurve(enc.encode(p.secret)).toHex(true), meltId: meltQuote.quote
             }
         }))
 

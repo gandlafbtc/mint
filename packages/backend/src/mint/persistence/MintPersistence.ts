@@ -3,7 +3,7 @@ import type { Keyset as SerializedKeyset } from "@cashu/crypto/modules/common";
 import type { Unit } from "../types";
 import { upsertSettings } from "../../persistence/settings";
 import { SETTINGS_VERSION } from "../../const";
-import { db as database } from "../../db/db";
+import { db as database, db } from "../../db/db";
 import { blindedMessagesTable, keysetsTable, keysTable, meltQuotesTable, mintQuotesTable, proofsTable } from "@mnt/common/db";
 import { type BlindedMessage, type InsertBlindedMessage, type InsertKeys, type InsertMeltQuote, type InsertMintQuote, type InsertProof, type Keys, type Keyset, type MeltQuote, type MintQuote, type Proof } from "@mnt/common/db/types";
 
@@ -24,6 +24,10 @@ export class MintPersistenceImpl {
         ])
         log.debug`Upserted mint keys in settings.`
         return { privKey: keys.privKey, pubKey: keys.pubKey }
+    }
+
+    async getProofsByState (state: CheckStateEnum): Promise<Proof[]> {
+       return await db.select().from(proofsTable).where(eq(proofsTable.status, state))
     }
 
     async getKeys(keysetId: string,tx?: BunSQLiteDatabase): Promise<KeysetPair> {
@@ -97,7 +101,7 @@ export class MintPersistenceImpl {
 
     async insertProofs(proofs: InsertProof[], tx?: BunSQLiteDatabase) {
         const db = tx??database
-        const insertedProofs = await tx??db.insert(proofsTable).values(proofs).returning()
+        const insertedProofs = await db.insert(proofsTable).values(proofs).returning()
         eventEmitter.emit('socket-event', { command: 'inserted-proofs', data: { proofs: insertedProofs } })
         return insertedProofs
     }

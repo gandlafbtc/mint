@@ -64,6 +64,7 @@ export const proofsTable = sqliteTable("proofs", {
     C: text().unique().notNull(),
     amount: int().notNull(),
     status: text().notNull(),
+    meltId: text().references(()=>mintQuotesTable.quote),
     ...timestamps
 });
 

@@ -9,6 +9,7 @@
         macaroonHex: $settings.find(s=>s.key === 'backend-macaroon')?.value??'',
         rpcHost: $settings.find(s=>s.key === 'backend-rpc-host')?.value??'',
         tlsCertHex: $settings.find(s=>s.key === 'backend-tls-cert')?.value??'',
+        nwcString: $settings.find(s=>s.key === 'backend-nwc-connection')?.value??'',
         type: $settings.find(s=>s.key === 'backend-type')?.value??'',
     })
 </script>

@@ -3,6 +3,7 @@ import type { ChannelBalanceResponse, InvoicePartial, WalletBalanceResponse } fr
 export interface Lightning {
     getNewInvoice(amount: number): Promise<{paymentRequest: string, rHash: string | Buffer | Uint8Array}>
     getInvoice(hash:string): Promise<{paymentRequest: string, state: string}>
+    getInvoiceByInvoice(invoice:string): Promise<{paymentRequest: string, state: string}>
     payInvoice(request: string, feeLimitMsat: number): Promise<{preimage:string, fee: number}>
     estimateFee(request:string): Promise<{fee: number}>
     getInvoiceAmount(request:string): Promise<{amount: number}>

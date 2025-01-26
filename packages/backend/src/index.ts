@@ -17,6 +17,8 @@ import { version } from "../package.json";
 import { logger } from '@grotto/logysia'
 import { log } from './logger'
 import { rateLimit } from 'elysia-rate-limit'
+import cron from '@elysiajs/cron'
+import { checkPendingProofs } from './jobs/checkPendingProofs'
 
 log.info`Starting MNT version ${version}...`
 
@@ -28,7 +30,17 @@ const app = new Elysia()
             log.debug(m)
         }
     }
-}))
+})).use(
+    cron({
+        name: 'heartbeat',
+        // pattern: '*/5 * * * *',
+        pattern: '*/10 * * * * *',
+        run() {
+            console.log('Heartbeat')
+            checkPendingProofs()
+        }
+    })
+)
 .use(rateLimit({
     duration: 30000,
     max: 100
@@ -82,10 +94,6 @@ const app = new Elysia()
                     }
                     ,
                     "9": {
-                        supported: true
-                    }
-                    ,
-                    "12": {
                         supported: true
                     }
                 }
@@ -240,7 +248,7 @@ const app = new Elysia()
             })
             .post('/checkstate', async ({ body, set }) => {
                 try {
-                    const { Ys } = body as { Ys: string[] }
+                    const { Ys } = body
                     const states = await mint.checkToken(Ys)
                     for (const y of Ys) {
                         if (!states.find(s => s.Y === y)) {

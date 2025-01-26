@@ -38,6 +38,15 @@ export class NWCImpl implements Lightning {
     const tx = await nwc.lookupInvoice({
       payment_hash: hash
     })
+    console.log(tx)
+    return {paymentRequest: tx.invoice, state: tx.state.toUpperCase()}
+  }
+  async getInvoiceByInvoice(invoice: string): Promise<{paymentRequest: string, state: string}> {
+    const nwc = await NWC.getInstance()
+    const tx = await nwc.lookupInvoice({
+      invoice: invoice
+    })
+    console.log(tx)
     return {paymentRequest: tx.invoice, state: tx.state.toUpperCase()}
   }
 

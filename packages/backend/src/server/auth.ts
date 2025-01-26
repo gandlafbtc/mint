@@ -478,7 +478,7 @@ const sendPing = async (ws: ElysiaWS) => {
             throw new Error("No backend configured");
         }
         if (lightning instanceof NWCImpl) {
-            ws.send({ command: 'ping', data: {isConnected: true, backend: 'NWC'} })
+            ws.send({ command: 'ping', data: {backendConnection:{isConnected: true, backend: 'NWC'}} })
             return
         }
         const {detail, isConnected} = await lightning.testConnection()
