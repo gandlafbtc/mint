@@ -66,7 +66,7 @@
 		},
 
 		chart: {
-			type: 'line',
+			type: 'area',
 			height: 500
 		},
 		xaxis: {

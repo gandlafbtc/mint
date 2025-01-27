@@ -1,12 +1,14 @@
 import { browser } from "$app/environment";
 import { goto } from "$app/navigation";
-import { PUBLIC_MINT_API, PUBLIC_MINT_WS } from "$env/static/public";
+import { env } from "$env/dynamic/public";
 import { scrypt } from "@noble/hashes/scrypt";
 import { bytesToHex } from "@noble/hashes/utils";
 import { toast } from "svelte-sonner";
 import { get, writable } from "svelte/store";
 import { type BlindedMessage, type Keyset, type Proof, type Setting } from "@mnt/common/db/types";
 import { type ConnectPayload, type PingData } from "@mnt/common/types";
+
+const {PUBLIC_MINT_API, PUBLIC_MINT_WS} = env
 
 export type User = {
     access_token: string
