@@ -21,7 +21,7 @@
     const login = async () => {
 		try {
             isLoading = true;
-			const data = userLoggedIn.login(username, password)
+			const data = await userLoggedIn.login(username, password)
             toast.success(data.message)
             goto('/')
         } catch (error) {

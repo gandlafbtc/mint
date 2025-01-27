@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { PUBLIC_APP_NAME, PUBLIC_MINT_API } from '$env/static/public';
 	import { settings, userLoggedIn } from '../stores';
 	import Terminal from 'lucide-svelte/icons/terminal';
 	import * as Alert from '$lib/components/ui/alert/index.js';
@@ -17,7 +16,7 @@
 				<Terminal class="size-4" />
 				<Alert.Title>Welcome!</Alert.Title>
 				<Alert.Description
-					>Please continue with the <a href="/setup" class="underline">Setup</a> to use {PUBLIC_APP_NAME}.</Alert.Description
+					>Please continue with the <a href="/setup" class="underline">Setup</a> to use the mint.</Alert.Description
 				>
 			</Alert.Root>
 		{/if}

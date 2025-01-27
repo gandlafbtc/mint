@@ -336,7 +336,6 @@ export const auth = (app: Elysia) =>
                     }
                     await connectNWC(nwcString)
                 }
-
                 
                 const settings = await getAll(settingsTable)
                 return {
@@ -477,10 +476,10 @@ const sendPing = async (ws: ElysiaWS) => {
         if (!lightning) {
             throw new Error("No backend configured");
         }
-        if (lightning instanceof NWCImpl) {
-            ws.send({ command: 'ping', data: {backendConnection:{isConnected: true, backend: 'NWC'}} })
-            return
-        }
+        // if (lightning instanceof NWCImpl) {
+        //     ws.send({ command: 'ping', data: {backendConnection:{isConnected: true, backend: 'NWC'}} })
+        //     return
+        // }
         const {detail, isConnected} = await lightning.testConnection()
         const pingData: PingData = {
             backendConnection: {
@@ -510,7 +509,6 @@ const sendPing = async (ws: ElysiaWS) => {
             detail: err.message
         } })
     }
-   
 }
 const handleCommand = async (message: { command: string, data: unknown }) => {
     // log.debug(`Received websocket command: {message}`, {message} )

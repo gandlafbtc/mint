@@ -1,4 +1,4 @@
-import { relations, sql, type InferInsertModel, type InferSelectModel } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { int, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 const timestamps = {
@@ -90,4 +90,21 @@ export const meltQuotesTable = sqliteTable("melt_quotes", {
     payment_preimage: text(),
     expiry: integer().notNull(),
     ...timestamps
+});
+
+export const pendingProofsTSTable = sqliteTable("pending_proofs_ts", {
+    dt: int().primaryKey().default(sql`(unixepoch())`),
+    amount: int(),
+    count: int()
+});
+
+export const outstandingPromisesTSTable = sqliteTable("outstanding_promises_ts", {
+    dt: int().primaryKey().default(sql`(unixepoch())`),
+    amount: int(),
+    count: int()
+});
+
+export const balanceTSTable = sqliteTable("balance_ts", {
+    dt: int().primaryKey().default(sql`(unixepoch())`),
+    amount: int(),
 });

@@ -14,7 +14,6 @@
 		<div class="bg-secondary flex h-52 flex-col rounded-lg p-2">
 			<div class="flex items-center justify-between gap-2">
 				<p class="font-bold">Keysets</p>
-
 			</div>
 			{#if $keysets}
 				<!-- {JSON.stringify($keysets)} -->
@@ -57,6 +56,7 @@
 				0
 			)}
 			{@const lnBalance = $pingStore?.backendConnection?.lnBalance?.outbound ?? 0}
+			{@const simpleBalance = $pingStore?.backendConnection?.simpleBalance}
 			{@const lnInbound = $pingStore?.backendConnection?.lnBalance?.inbound ?? 0}
 			{@const onChain = $pingStore?.backendConnection?.onchainBalance?.confirmed ?? 0}
 			<div class="bg-secondary flex h-52 w-full flex-col justify-between rounded-lg p-2">
@@ -89,7 +89,8 @@
 									minimumFractionDigits: 0
 								}}
 								value={promisesCount - proofsCount}
-							></NumberFlow> ({Math.floor(((promisesCount - proofsCount) / promisesCount) * 100)} %) Unredeemed
+							></NumberFlow> ({Math.floor(((promisesCount - proofsCount) / promisesCount) * 100)} %)
+							Unredeemed
 						</p>
 						<ProgressSuccess class="bg-sky-500" value={(proofsCount / promisesCount) * 100} />
 						<p class="text-sky-500">
@@ -100,7 +101,9 @@
 									minimumFractionDigits: 0
 								}}
 								value={totalPromises - totalProofs}
-							></NumberFlow> sat ({Math.floor(((totalPromises -totalProofs) / totalPromises) * 100)} %) Unredeemed
+							></NumberFlow> sat ({Math.floor(
+								((totalPromises - totalProofs) / totalPromises) * 100
+							)} %) Unredeemed
 						</p>
 						<ProgressSuccess class="bg-sky-500" value={(totalProofs / totalPromises) * 100} />
 					</div>
@@ -124,27 +127,11 @@
 					<p class="font-bold">Lightning</p>
 					<BackendConnectionIndicator></BackendConnectionIndicator>
 				</div>
-
-				<div class="flex flex-col gap-2 lg:flex-row">
-					<div class="bg-background flex h-40 w-full min-w-44 flex-col gap-2 rounded-lg">
-						<p class="m-2 text-sm font-bold">Channel liquidity</p>
-						<div class=" grid h-full grid-cols-2 items-center justify-center gap-2">
-							<div class="flex flex-col items-center justify-center gap-2 text-green-500">
-								<p class="">Outbound</p>
-								<p class="text-3xl font-bold">
-									<NumberFlow
-										format={{
-											notation: 'compact',
-											maximumFractionDigits: 1,
-											minimumFractionDigits: 0
-										}}
-										value={lnBalance}
-									></NumberFlow>
-								</p>
-							</div>
-
-							<div class=" flex flex-col items-center justify-center gap-2 text-yellow-400">
-								<p class="">Inbound</p>
+				{#if simpleBalance !== undefined}
+					<div class="flex flex-col gap-2 lg:flex-row">
+						<div class="bg-background flex h-40 w-full min-w-44 flex-col gap-2 rounded-lg">
+							<div class="flex flex-col items-center h-full justify-center gap-2 text-yellow-500">
+								<p class="m-2 text-sm font-bold">Balance</p>
 
 								<p class="text-3xl font-bold">
 									<NumberFlow
@@ -153,52 +140,92 @@
 											maximumFractionDigits: 1,
 											minimumFractionDigits: 0
 										}}
-										value={lnInbound}
+										value={Math.floor(simpleBalance/1000)}
 									></NumberFlow>
-									<span class="text-xs"> sat </span>
 								</p>
-							</div>
-							<div class=" col-span-2 m-2 flex flex-col items-center justify-center gap-2">
-								<ProgressSuccess class="bg-yellow-400" value={(lnBalance / (lnInbound+lnBalance)) * 100} />
+								<span class="text-xs"> sat </span>
 							</div>
 						</div>
 					</div>
-					<div class="flex gap-2">
-						<div class="bg-background flex h-40 w-44 flex-col rounded-lg">
-							<p class="m-2 text-sm font-bold">Onchain</p>
-							<div class="flex h-full w-full items-center justify-center">
-								<p class="text-3xl font-bold text-orange-500">
-									<NumberFlow
-										format={{
-											notation: 'compact',
-											maximumFractionDigits: 1,
-											minimumFractionDigits: 0
-										}}
-										value={onChain}
-									></NumberFlow>
-									<span class="text-xs"> sat </span>
-								</p>
+				{:else}
+					<div class="flex flex-col gap-2 lg:flex-row">
+						<div class="bg-background flex h-40 w-full min-w-44 flex-col gap-2 rounded-lg">
+							<p class="m-2 text-sm font-bold">Channel liquidity</p>
+							<div class=" grid h-full grid-cols-2 items-center justify-center gap-2">
+								<div class="flex flex-col items-center justify-center gap-2 text-green-500">
+									<p class="">Outbound</p>
+									<p class="text-3xl font-bold">
+										<NumberFlow
+											format={{
+												notation: 'compact',
+												maximumFractionDigits: 1,
+												minimumFractionDigits: 0
+											}}
+											value={lnBalance}
+										></NumberFlow>
+									</p>
+								</div>
+
+								<div class=" flex flex-col items-center justify-center gap-2 text-yellow-400">
+									<p class="">Inbound</p>
+
+									<p class="text-3xl font-bold">
+										<NumberFlow
+											format={{
+												notation: 'compact',
+												maximumFractionDigits: 1,
+												minimumFractionDigits: 0
+											}}
+											value={lnInbound}
+										></NumberFlow>
+										<span class="text-xs"> sat </span>
+									</p>
+								</div>
+								<div class=" col-span-2 m-2 flex flex-col items-center justify-center gap-2">
+									<ProgressSuccess
+										class="bg-yellow-400"
+										value={(lnBalance / (lnInbound + lnBalance)) * 100}
+									/>
+								</div>
 							</div>
 						</div>
+						<div class="flex gap-2">
+							<div class="bg-background flex h-40 w-44 flex-col rounded-lg">
+								<p class="m-2 text-sm font-bold">Onchain</p>
+								<div class="flex h-full w-full items-center justify-center">
+									<p class="text-3xl font-bold text-orange-500">
+										<NumberFlow
+											format={{
+												notation: 'compact',
+												maximumFractionDigits: 1,
+												minimumFractionDigits: 0
+											}}
+											value={onChain}
+										></NumberFlow>
+										<span class="text-xs"> sat </span>
+									</p>
+								</div>
+							</div>
 
-						<div class="bg-background flex h-40 w-44 flex-col rounded-lg">
-							<p class="m-2 text-sm font-bold">Coverage</p>
-							<div class="flex h-full w-full items-center justify-center">
-								<p class="text-3xl font-bold">
-									<NumberFlow
-										format={{
-											notation: 'compact',
-											maximumFractionDigits: 1,
-											minimumFractionDigits: 0
-										}}
-										value={(lnBalance / (totalPromises - totalProofs)) * 100}
-									></NumberFlow>
-									<span class="text-xs"> % </span>
-								</p>
+							<div class="bg-background flex h-40 w-44 flex-col rounded-lg">
+								<p class="m-2 text-sm font-bold">Coverage</p>
+								<div class="flex h-full w-full items-center justify-center">
+									<p class="text-3xl font-bold">
+										<NumberFlow
+											format={{
+												notation: 'compact',
+												maximumFractionDigits: 1,
+												minimumFractionDigits: 0
+											}}
+											value={(lnBalance / (totalPromises - totalProofs)) * 100}
+										></NumberFlow>
+										<span class="text-xs"> % </span>
+									</p>
+								</div>
 							</div>
 						</div>
 					</div>
-				</div>
+				{/if}
 			</div>
 		{:else}
 			<LoaderCircle class="animate-spin"></LoaderCircle>

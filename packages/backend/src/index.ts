@@ -32,11 +32,11 @@ const app = new Elysia()
     }
 })).use(
     cron({
-        name: 'heartbeat',
-        // pattern: '*/5 * * * *',
-        pattern: '*/10 * * * * *',
+        name: 'jobs',
+        pattern: '*/1 * * * *',
+        // pattern: '*/10 * * * * *',
         run() {
-            console.log('Heartbeat')
+            console.log('Running jobs...')
             checkPendingProofs()
         }
     })
@@ -354,6 +354,6 @@ const app = new Elysia()
             )
             .use(auth)
     )
-    .listen(3000)
+    .listen(Bun.env.PORT!)
 
 log.info`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`

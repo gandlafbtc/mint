@@ -7,6 +7,7 @@ import { log } from "../logger"
 
 export const checkPendingProofs = async () => {
     const proofs = await persistence.getProofsByState(CheckStateEnum.PENDING)
+    // await db.insert(pendingProofsTSTable).values({amount: proofs.reduce((acc, curr)=> acc+curr.amount,0), count: proofs.length})
     log.debug`check [${proofs.length}] pending proofs`
     if (!proofs.length) {
         return
@@ -15,7 +16,6 @@ export const checkPendingProofs = async () => {
     console.log(meltIds)
     const meltquotes = await db.select().from(meltQuotesTable).where(inArray(meltQuotesTable.quote, meltIds))
     log.debug`check [${meltquotes.length}] quotes for proofs`
-    const deleteProofIds: string[] = []
     for (const q of meltquotes) {
         const invoice = await mint.getLightningInterface()?.getInvoiceByInvoice(q.request)
         console.log(invoice)
@@ -32,4 +32,4 @@ export const checkPendingProofs = async () => {
             log.info`[${failedProofs.length}] proofs have failed to settle for mint quote [${q.quote}] and were removed from the db`
         }
     }
-}  
+}
