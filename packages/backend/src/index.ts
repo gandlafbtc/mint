@@ -9,43 +9,54 @@ import { CheckStateEnum, type GetInfoResponse, type MintKeyset, type SerializedB
 import type { SerializedProof } from '@cashu/crypto/modules/common';
 
 import { getActiveKeys, getKeysetById } from './persistence/keysets'
-import { mint, persistence } from './instances/mint'
+import { mint } from './instances/mint'
 import { ensureError } from './errors'
-import type { Keyset, Setting } from '@mnt/common/db/types'
-import { ansiColorFormatter, configure, getConsoleSink, getFileSink, getLogger } from "@logtape/logtape";
 import { version } from "../package.json";
 import { logger } from '@grotto/logysia'
 import { log } from './logger'
 import { rateLimit } from 'elysia-rate-limit'
 import cron from '@elysiajs/cron'
 import { checkPendingProofs } from './jobs/checkPendingProofs'
+import { getInfo } from './mintCommands/getInfo'
+import { getKeysets } from './mintCommands/getKeysets'
+import { NMC } from './instances/nmc'
 
 log.info`Starting MNT version ${version}...`
 
 const app = new Elysia()
-.use(logger({
-    logIP: false,
-    writer: {
-        write: (m: string)=> {
-            log.debug(m)
+    .use(logger({
+        logIP: false,
+        writer: {
+            write: (m: string) => {
+                log.debug(m)
+            }
         }
-    }
-})).use(
-    cron({
-        name: 'jobs',
-        pattern: '*/1 * * * *',
-        // pattern: '*/10 * * * * *',
-        run() {
-            console.log('Running jobs...')
-            checkPendingProofs()
-        }
-    })
-)
-.use(rateLimit({
-    duration: 30000,
-    max: 100
-}))
-.use(swagger({
+    })).use(
+        cron({
+            name: 'jobs',
+            pattern: '*/1 * * * *',
+            // pattern: '*/10 * * * * *',
+            run() {
+                console.log('Running jobs...')
+                checkPendingProofs()
+            }
+        })
+    ).use(
+        cron({
+            name: 'nmc',
+            // pattern: '*/1 * * * *',
+            pattern: '*/10 * * * * *',
+            run() {
+                console.log('nmc job')
+                NMC.getInstance()
+            }
+        })
+    )
+    .use(rateLimit({
+        duration: 30000,
+        max: 100
+    }))
+    .use(swagger({
         path: '/docs',
         documentation: {
             info: {
@@ -56,60 +67,9 @@ const app = new Elysia()
     }))
     .group('/v1', (app) =>
         app.use(cors()).get('/info', async () => {
-            const settings = await getAll(settingsTable) as Setting[]
-            const info: GetInfoResponse = {
-                contact: [],
-                name: settings.find(s => s.key === 'mint-name')?.value ?? '',
-                pubkey: settings.find(s => s.key === 'mint-pub-key')?.value ?? '',
-                version: 'MNT-v'+version,
-                motd: settings.find(s => s.key === 'mint-motd')?.value ?? '',
-                description: settings.find(s => s.key === 'mint-description')?.value ?? '',
-                description_long: settings.find(s => s.key === 'mint-description-long')?.value ?? '',
-                nuts: {
-                    "4": {
-                        methods: [{
-                            method: 'bolt11',
-                            unit: 'sat',
-                            min_amount: parseInt(settings.find(s => s.key === 'mint-min-amt')?.value ?? "0"),
-                            max_amount: parseInt(settings.find(s => s.key === 'mint-max-amt')?.value ?? "0")
-                        }],
-                        disabled: (settings.find(s => s.key === 'minting-disabled')?.value ?? 'false') === 'true' ? true : false,
-                    },
-                    "5":
-                    {
-                        methods: [{
-                            method: 'bolt11',
-                            unit: 'sat',
-                            min_amount: parseInt(settings.find(s => s.key === 'melt-min-amt')?.value ?? "0"),
-                            max_amount: parseInt(settings.find(s => s.key === 'melt-max-amt')?.value ?? "0")
-                        }],
-                        disabled: (settings.find(s => s.key === 'melting-disabled')?.value ?? 'false') === 'true' ? true : false,
-                    },
-                    "7": {
-                        supported: true
-                    }
-                    ,
-                    "8": {
-                        supported: true
-                    }
-                    ,
-                    "9": {
-                        supported: true
-                    }
-                }
-            }
-            return info
+            return await getInfo()
         }).get('/keysets', async () => {
-            const storedKeysets = await getAll(keysetsTable) as Keyset[]
-            const keysets: MintKeyset[] = storedKeysets.map(ks => {
-                return {
-                    active: ks.isActive ?? false,
-                    id: ks.hash,
-                    unit: ks.unit ?? 'sat',
-                    input_fee_ppk: ks.input_fee_ppk ?? 0
-                }
-            })
-            return { keysets }
+            return await getKeysets()
         }
         )
             .get('/keys', async () => {
@@ -153,7 +113,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -171,7 +131,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -189,7 +149,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -206,7 +166,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -224,7 +184,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -239,7 +199,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -259,7 +219,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337
@@ -294,7 +254,7 @@ const app = new Elysia()
                 } catch (error) {
                     set.status = 400;
                     const err = ensureError(error)
-                    log.error('Error: {error}', {error})
+                    log.error('Error: {error}', { error })
                     return {
                         detail: err.message,
                         code: 1337

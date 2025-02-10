@@ -36,6 +36,7 @@
     "drizzle-orm": "^0.38.3",
     "elysia": "^1.2.6",
     "elysia-rate-limit": "^4.1.0",
-    "light-bolt11-decoder": "^3.2.0"
+    "light-bolt11-decoder": "^3.2.0",
+    "nostr-tools": "^2.10.4"
   }
 }
