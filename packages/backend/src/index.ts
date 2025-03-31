@@ -71,7 +71,6 @@ const app = new Elysia()
 	.group("/v1", (app) => app.use(cors()).use(open))
 	.use(
 		cors({
-			// origin: /.*\.saltyaom\.com$/
 			origin: process.env.FRONTEND_URL,
 		}),
 	)

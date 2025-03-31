@@ -1,5 +1,6 @@
 import {
 	CheckStateEnum,
+	type GetInfoResponse,
 	type MeltQuoteResponse,
 	MeltQuoteState,
 } from "@cashu/cashu-ts";
@@ -33,6 +34,7 @@ import { bytesToHex } from "@noble/curves/abstract/utils";
 import { schnorr } from "@noble/curves/secp256k1";
 import { HDKey } from "@scure/bip32";
 import { mnemonicToSeed } from "@scure/bip39";
+import { version } from "../../../package.json";
 import { connectBackend } from "../../backend/connect/connect";
 import { db } from "../../db/db";
 import { createTransaction } from "../../db/tx";
@@ -54,6 +56,67 @@ export class CashuMint {
 
 	setLightningInterface(lightningInterface: Lightning) {
 		this.lightningInterface = lightningInterface;
+	}
+
+	async getInfo() {
+		const settings = (await getAll(settingsTable)) as Setting[];
+		const info: GetInfoResponse = {
+			contact: [],
+			name: settings.find((s) => s.key === "mint-name")?.value ?? "",
+			pubkey: settings.find((s) => s.key === "mint-pub-key")?.value ?? "",
+			version: `MNT/${version}`,
+			motd: settings.find((s) => s.key === "mint-motd")?.value ?? "",
+			description:
+				settings.find((s) => s.key === "mint-description")?.value ?? "",
+			description_long:
+				settings.find((s) => s.key === "mint-description-long")?.value ?? "",
+			nuts: {
+				"4": {
+					methods: [
+						{
+							method: "bolt11",
+							unit: "sat",
+							min_amount: Number.parseInt(
+								settings.find((s) => s.key === "mint-min-amt")?.value ?? "0",
+							),
+							max_amount: Number.parseInt(
+								settings.find((s) => s.key === "mint-max-amt")?.value ?? "0",
+							),
+						},
+					],
+					disabled:
+						(settings.find((s) => s.key === "minting-disabled")?.value ??
+							"false") === "true",
+				},
+				"5": {
+					methods: [
+						{
+							method: "bolt11",
+							unit: "sat",
+							min_amount: Number.parseInt(
+								settings.find((s) => s.key === "melt-min-amt")?.value ?? "0",
+							),
+							max_amount: Number.parseInt(
+								settings.find((s) => s.key === "melt-max-amt")?.value ?? "0",
+							),
+						},
+					],
+					disabled:
+						(settings.find((s) => s.key === "melting-disabled")?.value ??
+							"false") === "true",
+				},
+				"7": {
+					supported: true,
+				},
+				"8": {
+					supported: true,
+				},
+				"9": {
+					supported: true,
+				},
+			},
+		};
+		return info;
 	}
 
 	async createKeysFromSeed(
