@@ -69,7 +69,6 @@ export class MintPersistenceImpl {
 		tx?: BunSQLiteDatabase,
 	): Promise<Keyset[]> {
 		const db = tx ?? database;
-		let allKeysets: Keyset[];
 		log.debug`Adding keyset...`;
 		await db
 			.update(keysetsTable)
@@ -99,7 +98,7 @@ export class MintPersistenceImpl {
 		}
 		await db.insert(keysTable).values(keys);
 		log.debug`Keyset persisted`;
-		allKeysets = await db.select().from(keysetsTable);
+		const allKeysets = await db.select().from(keysetsTable);
 		return allKeysets;
 	}
 	async getKeysets(tx?: BunSQLiteDatabase): Promise<SerializedKeyset[]> {
@@ -235,7 +234,7 @@ export class MintPersistenceImpl {
 			.$dynamic()
 			.where(inArray(proofsTable.status, ["SPENT", "PENDING"]))
 			.where(inArray(proofsTable.secret, secret));
-		return values.length ? true : false;
+		return !!values.length;
 	}
 	async getProofsByYs(Ys: string[], tx?: BunSQLiteDatabase): Promise<Proof[]> {
 		const db = tx ?? database;

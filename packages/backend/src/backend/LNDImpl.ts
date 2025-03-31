@@ -24,7 +24,7 @@ export class LNDBackend implements Lightning {
 			const { balance } = await lnd.lightning.channelBalance();
 			return {
 				state: "CONNECTION_OK",
-				isConnected: balance === undefined ? false : true,
+				isConnected: balance !== undefined,
 				detail: "CONNECTION_OK",
 			};
 		} catch (error) {

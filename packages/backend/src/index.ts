@@ -33,6 +33,22 @@ import { getActiveKeys, getKeysetById } from "./persistence/keysets";
 
 log.info`Starting MNT version ${version}...`;
 
+if (!Bun.env.PORT) {
+    log.error("No PORT environment variable set");
+    process.exit(1);
+}
+
+if (!Bun.env.JWT_SECRET) {
+    log.error("No JWT_SECRET environment variable set");
+    process.exit(1);
+}
+
+if (!Bun.env.FRONTEND_URL) {
+    log.error("No FRONTEND_URL environment variable set");
+    process.exit(1);    
+}
+
+
 const app = new Elysia()
 	.use(
 		logger({
@@ -81,7 +97,7 @@ const app = new Elysia()
 					contact: [],
 					name: settings.find((s) => s.key === "mint-name")?.value ?? "",
 					pubkey: settings.find((s) => s.key === "mint-pub-key")?.value ?? "",
-					version: "MNT-v" + version,
+					version: `MNT/${version}`,
 					motd: settings.find((s) => s.key === "mint-motd")?.value ?? "",
 					description:
 						settings.find((s) => s.key === "mint-description")?.value ?? "",
@@ -106,9 +122,7 @@ const app = new Elysia()
 							],
 							disabled:
 								(settings.find((s) => s.key === "minting-disabled")?.value ??
-									"false") === "true"
-									? true
-									: false,
+									"false")  === "true",
 						},
 						"5": {
 							methods: [
@@ -127,9 +141,7 @@ const app = new Elysia()
 							],
 							disabled:
 								(settings.find((s) => s.key === "melting-disabled")?.value ??
-									"false") === "true"
-									? true
-									: false,
+									"false")  === "true",
 						},
 						"7": {
 							supported: true,
@@ -432,12 +444,13 @@ const app = new Elysia()
 			.use(
 				jwt({
 					name: "jwt",
+					// biome-ignore lint/style/noNonNullAssertion: <explanation>
 					secret: Bun.env.JWT_SECRET!,
 					exp: "7d",
 				}),
 			)
 			.use(auth),
 	)
-	.listen(Bun.env.PORT!);
+	.listen(Bun.env.PORT);
 
 log.info`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`;

@@ -57,7 +57,6 @@ export class CashuMint {
 	setLightningInterface(lightningInterface: Lightning) {
 		this.lightningInterface = lightningInterface;
 	}
-	constructor() {}
 
 	async createKeysFromSeed(
 		menmonicOrseed?: string | Uint8Array,
@@ -70,10 +69,11 @@ export class CashuMint {
 			privKey = schnorr.utils.randomPrivateKey();
 		} else {
 			log.debug`... without mnemnonic`;
-			if (typeof menmonicOrseed === "string") {
-				menmonicOrseed = await mnemonicToSeed(menmonicOrseed);
+            let seed = menmonicOrseed
+			if (typeof seed === "string") {
+				seed = await mnemonicToSeed(seed);
 			}
-			const hdkey = HDKey.fromMasterSeed(menmonicOrseed);
+			const hdkey = HDKey.fromMasterSeed(seed);
 			// todo what kind of derivation to use?
 			const derivationPath = `m/129372'/0'/0'/129372'`;
 			const derived = hdkey.derive(derivationPath);
@@ -137,7 +137,7 @@ export class CashuMint {
 		const keys = await this.getKeys(outputs[0].id);
 		signedOutputs = outputs.map((o) => {
 			if (!keys.privKeys[o.amount]) {
-				throw new MintError(123, "Keyset does not have amount: " + o.amount);
+				throw new MintError(123, `Keyset does not have amount: ${o.amount}`);
 			}
 			return {
 				changeId: null,
@@ -222,7 +222,7 @@ export class CashuMint {
 		}
 		const mintQuote = await persistence.getMintQuote(quote);
 		if (!mintQuote) {
-			throw new MintError(120, "No mint quote found with id:" + quote);
+			throw new MintError(120, `No mint quote found with id:${quote}`);
 		}
 		const invoice = await this.lightningInterface.getInvoice(mintQuote.hash);
 		if (invoice.state === "SETTLED" && mintQuote.state !== "ISSUED") {
@@ -250,10 +250,10 @@ export class CashuMint {
 			throw new MintError(121, "No outputs provided");
 		}
 		if (mintQuote.state === MintQuoteState.ISSUED) {
-			throw new MintError(121, "Mint quote has already been isssued:" + quote);
+			throw new MintError(121, `Mint quote has already been isssued:${quote}`);
 		}
 		if (mintQuote.state === MintQuoteState.UNPAID) {
-			throw new MintError(121, "Mint quote has not been paid:" + quote);
+			throw new MintError(121, `Mint quote has not been paid:${quote}`);
 		}
 
 		// check if proof amount matches quote
@@ -262,13 +262,13 @@ export class CashuMint {
 				return curr + acc.amount;
 			}, 0) !== mintQuote.amount
 		) {
-			throw new MintError(123, "Proof amount does not match quote:" + quote);
+			throw new MintError(123, `Proof amount does not match quote:${quote}`);
 		}
 		const keys = await this.getKeys(outputs[0].id);
 
 		const signedOutputs = outputs.map((o) => {
 			if (!keys.privKeys[o.amount]) {
-				throw new MintError(123, "Keyset does not have amount: " + o.amount);
+				throw new MintError(123, `Keyset does not have amount: ${o.amount}`);
 			}
 			return {
 				changeId: null,
@@ -303,7 +303,7 @@ export class CashuMint {
 	async getMeltQuote(quote: string): Promise<MeltQuote> {
 		const meltQuote = await persistence.getMeltQuote(quote);
 		if (!meltQuote) {
-			throw new MintError(120, "No melt quote found with id:" + quote);
+			throw new MintError(120, `No melt quote found with id:${quote}`);
 		}
 		return meltQuote;
 	}
@@ -414,7 +414,7 @@ export class CashuMint {
 					if (!keys.privKeys[o.amount]) {
 						throw new MintError(
 							123,
-							"Keyset does not have amount: " + o.amount,
+							`Keyset does not have amount: ${o.amount}`,
 						);
 					}
 					return {
@@ -459,9 +459,8 @@ export class CashuMint {
 				};
 				return updatedQuoteResponse;
 			});
-		} else {
-			throw new Error("Melt failed: No preimage");
 		}
+			throw new Error("Melt failed: No preimage");
 	}
 
 	async checkToken(
@@ -546,7 +545,7 @@ export class CashuMint {
 				(ks) => ks.hash === id && !ks.allowMelt,
 			);
 			if (unallowedMeltKs) {
-				throw new MintError(101, "Melt is disabled for keyset: " + id);
+				throw new MintError(101, `Melt is disabled for keyset: ${id}`);
 			}
 		}
 		for (const id of keysetCheck.mintKSIDs ?? []) {
@@ -554,7 +553,7 @@ export class CashuMint {
 				(ks) => ks.hash === id && !ks.allowMint,
 			);
 			if (unallowedMintKs) {
-				throw new MintError(101, "Minting is disabled for keyset: " + id);
+				throw new MintError(101, `Minting is disabled for keyset: ${id}`);
 			}
 		}
 		for (const id of keysetCheck.swapOutKSIDs ?? []) {
@@ -562,7 +561,7 @@ export class CashuMint {
 				(ks) => ks.hash === id && !ks.allowSwapOut,
 			);
 			if (unallowedSwapOutKs) {
-				throw new MintError(101, "Swap out is disabled for keyset: " + id);
+				throw new MintError(101, `Swap out is disabled for keyset: ${id}`);
 			}
 		}
 		for (const id of keysetCheck.swapInKSIDs ?? []) {
@@ -570,7 +569,7 @@ export class CashuMint {
 				(ks) => ks.hash === id && !ks.allowSwapIn,
 			);
 			if (unallowedSwapInKs) {
-				throw new MintError(101, "Swap in is disabled for keyset: " + id);
+				throw new MintError(101, `Swap in is disabled for keyset: ${id}`);
 			}
 		}
 	}
@@ -578,9 +577,7 @@ export class CashuMint {
 		log.debug("Checking mint settings for amount: {amount}", { amount });
 		const allSettings = (await getAll(settingsTable)) as Setting[];
 		if (
-			allSettings.find((s) => s.key === "minting-disabled")?.value === "true"
-				? true
-				: false
+			allSettings.find((s) => s.key === "minting-disabled")?.value  === "true"
 		) {
 			throw new MintError(101, "Minting is currently disabled");
 		}
@@ -606,9 +603,7 @@ export class CashuMint {
 	private async checkMeltSettings(amount: number) {
 		const allSettings = (await getAll(settingsTable)) as Setting[];
 		if (
-			allSettings.find((s) => s.key === "melting-disabled")?.value === "true"
-				? true
-				: false
+			allSettings.find((s) => s.key === "melting-disabled")?.value  === "true"
 		) {
 			throw new MintError(101, "Melting is currently disabled");
 		}

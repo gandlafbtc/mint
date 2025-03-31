@@ -14,7 +14,7 @@ export const connectLND = async (
 		tlsCertHex,
 	);
 	if (!isConnected) {
-		throw new Error("Could not connect to LND: " + detail);
+		throw new Error(`Could not connect to LND: ${detail}`);
 	}
 	await upsertSettings([
 		{ key: "backend-type", value: "LND", version: SETTINGS_VERSION },
