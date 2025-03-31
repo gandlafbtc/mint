@@ -1,1 +1,1 @@
-export const SETTINGS_VERSION = 1
+export const SETTINGS_VERSION = 1;

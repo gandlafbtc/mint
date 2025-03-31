@@ -1,7 +1,5 @@
 import { EventEmitter } from "events";
 
-class CustomEmitter extends EventEmitter {
+class CustomEmitter extends EventEmitter {}
 
-}
-
-export const eventEmitter = new CustomEmitter()
+export const eventEmitter = new CustomEmitter();
