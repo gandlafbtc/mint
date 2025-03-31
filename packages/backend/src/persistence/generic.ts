@@ -1,9 +1,6 @@
 import type { blindedMessagesTable, proofsTable } from "@mnt/common/db";
 import { gt } from "drizzle-orm";
-import type {
-	SQLiteTable,
-	SQLiteTableWithColumns,
-} from "drizzle-orm/sqlite-core";
+import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "../db/db";
 
 export const getAll = async (table: SQLiteTable) => {

@@ -11,21 +11,15 @@ import { hash, verify } from "@node-rs/argon2";
 import { eq } from "drizzle-orm";
 import type Elysia from "elysia";
 import type { ElysiaWS } from "elysia/ws";
-import { NWCImpl } from "../backend/NWCImpl";
 import { connectBackend } from "../backend/connect/connect";
 import { connectLND } from "../backend/connect/connectLND";
 import { connectNWC } from "../backend/connect/connectNWC";
-import { testBackendConnection } from "../backend/test-connection";
 import { SETTINGS_VERSION } from "../const";
 import { db } from "../db/db";
-import {
-	takeUniqueOrThrow,
-	takeUniqueOrUndefinded,
-} from "../db/orm-helpers/orm-helper";
+import { takeUniqueOrUndefinded } from "../db/orm-helpers/orm-helper";
 import { ensureError } from "../errors";
 import { eventEmitter } from "../events/emitter";
-import { LND, getLNDSettings } from "../instances/lnd";
-import { mint, persistence } from "../instances/mint";
+import { mint } from "../instances/mint";
 import { log } from "../logger";
 import type { SocketEventData } from "../mint/types";
 import { getBMsCounts, totalPromised } from "../persistence/blindedmessages";
@@ -37,6 +31,7 @@ import { isAuthenticated } from "./middleware";
 
 export const auth = (app: Elysia) =>
 	app
+		//@ts-ignore
 		.post("/signup", async ({ body, set, jwt }) => {
 			try {
 				const { password, username } = body as {
@@ -112,6 +107,7 @@ export const auth = (app: Elysia) =>
 				};
 			}
 		})
+		//@ts-ignore
 		.post("/login", async ({ body, set, jwt }) => {
 			const { username, password } = body as {
 				username: string;
@@ -418,6 +414,7 @@ export const auth = (app: Elysia) =>
 			}
 		})
 		.ws("/ws", {
+			//@ts-ignore
 			beforeHandle: async ({ headers, request, set, jwt }) => {
 				const authHeader = headers["sec-websocket-protocol"];
 				log.debug`Authorizing websocket connection...`;
@@ -467,13 +464,14 @@ export const auth = (app: Elysia) =>
 					sendPing(ws);
 				}, 10000);
 				eventEmitter.on("socket-event", (e: SocketEventData) => {
-					log.debug(`Sending socket event {e}`, { e });
+					log.debug("Sending socket event {e}", { e });
 					ws.send(e);
 				});
 			},
 			message(ws, message: string) {
 				//receiving messages
 				try {
+					//@ts-ignore
 					handleCommand(message);
 				} catch (error) {
 					console.error(error);
@@ -524,7 +522,7 @@ const sendPing = async (ws: ElysiaWS) => {
 		// log.debug(`sent websocket ping {pingData}`, {pingData} )
 	} catch (error) {
 		const err = ensureError(error);
-		log.warn(`websocket Ping error {error}`, { error });
+		log.warn("websocket Ping error {error}", { error });
 		ws.send({
 			command: "ping",
 			data: {
@@ -537,10 +535,11 @@ const sendPing = async (ws: ElysiaWS) => {
 const handleCommand = async (message: { command: string; data: unknown }) => {
 	// log.debug(`Received websocket command: {message}`, {message} )
 	switch (message.command) {
-		case "update-keyset":
+		case "update-keyset": {
 			const data = message.data as { keyset: Keyset };
 			await updateKeyset(data.keyset);
 			break;
+		}
 		case "pong":
 			break;
 		default:

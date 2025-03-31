@@ -1,7 +1,5 @@
-import { nwc } from "@getalby/sdk";
 import { LndClient } from "@lightningpolar/lnd-api";
 import { ensureError } from "../errors";
-import { log } from "../logger";
 
 export const testBackendConnection = async (
 	socket: string,
@@ -17,7 +15,7 @@ export const testBackendConnection = async (
 		const { balance } = await client.lightning.channelBalance();
 		return {
 			state: "CONNECTION_OK",
-			isConnected: balance === undefined ? false : true,
+			isConnected: balance !== undefined,
 			detail: "CONNECTION_OK",
 		};
 	} catch (error) {
@@ -26,15 +24,3 @@ export const testBackendConnection = async (
 		return { isConnected: false, detail: err.message, state: "NO_CONNECTION" };
 	}
 };
-
-// export const testNWCConnection = async (connectionString: string, instance: nwc.NWCClient) => {
-//     try {
-//         log.debug`testing nwc connection: ${connectionString}`
-//         await instance.getInfo()
-//         return {state: 'CONNECTION_OK', isConnected: true, detail: 'CONNECTION_OK'}
-//     } catch (error) {
-//         console.error(error)
-//         const err = ensureError(error)
-//         return {isConnected: false, detail: err.message, state: 'NO_CONNECTION'}
-//     }
-// }

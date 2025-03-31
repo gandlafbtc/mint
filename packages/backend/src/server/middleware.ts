@@ -6,10 +6,11 @@ import { takeUniqueOrUndefinded } from "../db/orm-helpers/orm-helper";
 import { log } from "../logger";
 
 export const isAuthenticated = (app: Elysia) =>
+	//@ts-ignore
 	app.derive(async ({ jwt, set, headers }) => {
 		log.debug`Accessing protected endpoint...`;
-		const auth = headers["authorization"];
-		const token = auth && auth.startsWith("Bearer ") ? auth.slice(7) : null;
+		const auth = headers.authorization;
+		const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
 		if (!token) {
 			log.warn`Authorization token not set`;
 			set.status = 401;

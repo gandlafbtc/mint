@@ -1,14 +1,14 @@
-import { LND, getLNDSettings } from "../../instances/lnd";
+import { LND } from "../../instances/lnd";
 import { mint } from "../../instances/mint";
-import { NWC, getNWCSettings } from "../../instances/nwc";
-import { settings } from "../../mint/business/Settings";
+import { NWC } from "../../instances/nwc";
+import type { Lightning } from "../../mint/interface/Lightning";
 import { getSettingByKey } from "../../persistence/settings";
 import { LNDBackend } from "../LNDImpl";
 import { NWCImpl } from "../NWCImpl";
 
 export const connectBackend = async () => {
 	const backendType = await getSettingByKey("backend-type");
-	let inst;
+	let inst: Lightning;
 	if (backendType.value === "LND") {
 		inst = new LNDBackend();
 		await LND.recreateInstance();

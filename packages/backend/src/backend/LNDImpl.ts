@@ -1,6 +1,5 @@
 import type {
 	ChannelBalanceResponse,
-	InvoicePartial,
 	PayReqStringPartial,
 	Payment,
 	WalletBalanceResponse,
@@ -11,7 +10,6 @@ import { LND } from "../instances/lnd";
 import { log } from "../logger";
 import { settings } from "../mint/business/Settings";
 import type { Lightning } from "../mint/interface/Lightning";
-import { randomHexString } from "../mint/util/util";
 
 export class LNDBackend implements Lightning {
 	async testConnection(): Promise<{

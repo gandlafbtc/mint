@@ -10,10 +10,10 @@ export const findPrivKeyForAmountFromKeyset = (
 ): Uint8Array => {
 	const keysetPair = keys.find((kp) => kp.keysetId === id);
 	if (keysetPair === undefined) {
-		throw new MintError(122, "An output contained an unknown keyset ID: " + id);
+		throw new MintError(122, `An output contained an unknown keyset ID: ${id}`);
 	}
 	if (!keysetPair.privKeys[amount]) {
-		throw new MintError(123, "Keyset does not have amount: " + amount);
+		throw new MintError(123, `Keyset does not have amount: ${amount}`);
 	}
 	return keysetPair.privKeys[amount];
 };

@@ -12,6 +12,7 @@ export function conflictUpdateAllExcept<
 
 	return updateColumns.reduce(
 		(acc, [colName, table]) => ({
+			// biome-ignore lint/performance/noAccumulatingSpread: <explanation>
 			...acc,
 			[colName]: sql.raw(`excluded.${table.name}`),
 		}),

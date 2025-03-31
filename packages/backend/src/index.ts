@@ -15,18 +15,11 @@ import { auth } from "./server/auth";
 
 import cron from "@elysiajs/cron";
 import { logger } from "@grotto/logysia";
-import {
-	ansiColorFormatter,
-	configure,
-	getConsoleSink,
-	getFileSink,
-	getLogger,
-} from "@logtape/logtape";
 import type { Keyset, Setting } from "@mnt/common/db/types";
 import { rateLimit } from "elysia-rate-limit";
 import { version } from "../package.json";
 import { ensureError } from "./errors";
-import { mint, persistence } from "./instances/mint";
+import { mint } from "./instances/mint";
 import { checkPendingProofs } from "./jobs/checkPendingProofs";
 import { log } from "./logger";
 import { getActiveKeys, getKeysetById } from "./persistence/keysets";
@@ -34,20 +27,19 @@ import { getActiveKeys, getKeysetById } from "./persistence/keysets";
 log.info`Starting MNT version ${version}...`;
 
 if (!Bun.env.PORT) {
-    log.error("No PORT environment variable set");
-    process.exit(1);
+	log.error("No PORT environment variable set");
+	process.exit(1);
 }
 
 if (!Bun.env.JWT_SECRET) {
-    log.error("No JWT_SECRET environment variable set");
-    process.exit(1);
+	log.error("No JWT_SECRET environment variable set");
+	process.exit(1);
 }
 
 if (!Bun.env.FRONTEND_URL) {
-    log.error("No FRONTEND_URL environment variable set");
-    process.exit(1);    
+	log.error("No FRONTEND_URL environment variable set");
+	process.exit(1);
 }
-
 
 const app = new Elysia()
 	.use(
@@ -122,7 +114,7 @@ const app = new Elysia()
 							],
 							disabled:
 								(settings.find((s) => s.key === "minting-disabled")?.value ??
-									"false")  === "true",
+									"false") === "true",
 						},
 						"5": {
 							methods: [
@@ -141,7 +133,7 @@ const app = new Elysia()
 							],
 							disabled:
 								(settings.find((s) => s.key === "melting-disabled")?.value ??
-									"false")  === "true",
+									"false") === "true",
 						},
 						"7": {
 							supported: true,

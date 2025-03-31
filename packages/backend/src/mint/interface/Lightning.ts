@@ -1,6 +1,5 @@
 import type {
 	ChannelBalanceResponse,
-	InvoicePartial,
 	WalletBalanceResponse,
 } from "@lightningpolar/lnd-api";
 

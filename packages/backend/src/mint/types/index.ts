@@ -1,4 +1,4 @@
-import type { BlindSignature, Proof } from "@cashu/crypto/modules/common";
+import type { Proof } from "@cashu/crypto/modules/common";
 
 export class MintError extends Error {
 	code: number;
@@ -22,5 +22,5 @@ export type Secret = Proof | { secret: Uint8Array };
 
 export type SocketEventData = {
 	command: string;
-	data: any;
+	data: unknown;
 };

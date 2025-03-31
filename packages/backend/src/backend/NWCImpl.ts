@@ -1,4 +1,3 @@
-import type { ChannelBalanceResponse } from "@lightningpolar/lnd-api";
 import { decode } from "light-bolt11-decoder";
 import { ensureError } from "../errors";
 import { NWC } from "../instances/nwc";
@@ -69,8 +68,9 @@ export class NWCImpl implements Lightning {
 
 	async estimateFee(request: string): Promise<{ fee: number }> {
 		const invoice = decode(request);
+		//@ts-ignore
 		const amount = invoice.sections[2].value as number;
-		if (!amount || isNaN(amount)) {
+		if (!amount || Number.isNaN(amount)) {
 			return { fee: 1 };
 		}
 		const fee =

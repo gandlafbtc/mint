@@ -33,8 +33,6 @@ import { bytesToHex } from "@noble/curves/abstract/utils";
 import { schnorr } from "@noble/curves/secp256k1";
 import { HDKey } from "@scure/bip32";
 import { mnemonicToSeed } from "@scure/bip39";
-import { connect } from "bun";
-import type { SQLiteTransaction } from "drizzle-orm/sqlite-core";
 import { connectBackend } from "../../backend/connect/connect";
 import { db } from "../../db/db";
 import { createTransaction } from "../../db/tx";
@@ -69,7 +67,7 @@ export class CashuMint {
 			privKey = schnorr.utils.randomPrivateKey();
 		} else {
 			log.debug`... without mnemnonic`;
-            let seed = menmonicOrseed
+			let seed = menmonicOrseed;
 			if (typeof seed === "string") {
 				seed = await mnemonicToSeed(seed);
 			}
@@ -460,7 +458,7 @@ export class CashuMint {
 				return updatedQuoteResponse;
 			});
 		}
-			throw new Error("Melt failed: No preimage");
+		throw new Error("Melt failed: No preimage");
 	}
 
 	async checkToken(
@@ -472,9 +470,7 @@ export class CashuMint {
 		});
 	}
 
-	async restore(
-		restoreBms: SerializedBlindedMessage[],
-	): Promise<{
+	async restore(restoreBms: SerializedBlindedMessage[]): Promise<{
 		outputs: SerializedBlindedMessage[];
 		signatures: SerializedBlindSignature[];
 		promises: SerializedBlindSignature[];
@@ -577,7 +573,7 @@ export class CashuMint {
 		log.debug("Checking mint settings for amount: {amount}", { amount });
 		const allSettings = (await getAll(settingsTable)) as Setting[];
 		if (
-			allSettings.find((s) => s.key === "minting-disabled")?.value  === "true"
+			allSettings.find((s) => s.key === "minting-disabled")?.value === "true"
 		) {
 			throw new MintError(101, "Minting is currently disabled");
 		}
@@ -603,7 +599,7 @@ export class CashuMint {
 	private async checkMeltSettings(amount: number) {
 		const allSettings = (await getAll(settingsTable)) as Setting[];
 		if (
-			allSettings.find((s) => s.key === "melting-disabled")?.value  === "true"
+			allSettings.find((s) => s.key === "melting-disabled")?.value === "true"
 		) {
 			throw new MintError(101, "Melting is currently disabled");
 		}

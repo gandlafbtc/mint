@@ -15,7 +15,6 @@ import type {
 	InsertMeltQuote,
 	InsertMintQuote,
 	InsertProof,
-	Keys,
 	Keyset,
 	MeltQuote,
 	MintQuote,
@@ -30,14 +29,13 @@ import type {
 	CheckStateEnum,
 	MeltQuoteState,
 	MintQuoteState,
-	ProofState,
 } from "@cashu/cashu-ts";
 import { bytesToHex } from "@noble/hashes/utils";
 import { eq, inArray } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { eventEmitter } from "../../events/emitter";
 import { log } from "../../logger";
-import { getKeypairById, getKeysetById } from "../../persistence/keysets";
+import { getKeypairById } from "../../persistence/keysets";
 
 export class MintPersistenceImpl {
 	async insertSeedKeys(
@@ -288,7 +286,7 @@ export class MintPersistenceImpl {
 	}
 	async updateMeltQuoteState(
 		quote: string,
-		state: MeltQuoteState,
+		state: MeltQuoteState | "FAILED",
 		tx?: BunSQLiteDatabase,
 	): Promise<MeltQuote> {
 		const db = tx ?? database;
